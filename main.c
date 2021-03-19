@@ -24,7 +24,7 @@ int main(int argc, char argv[]){
         serv_IP = "193.136.138.142";
         serv_UDP_port = "59000";
     }
-
+bhsahdsabasdad
 
     strcpy(local_IP,argv[1]);
     strcpy(local_TCP_port,argv[2]);
