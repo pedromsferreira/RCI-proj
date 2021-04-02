@@ -11,7 +11,7 @@
 //Instruções para dar input corretamente após erro
 void instructions(){
     printf("To start this program, your command must be formatted like this:\n\n");
-    printf("ndn IP TCP regIP regUDP\n\n");
+    printf("ndn <IP> <TCP> <regIP> <regUDP>\n\n");
     return;
 } 
 
@@ -19,6 +19,7 @@ void instructions(){
 int validar_IPv4 (char* IPv4){
     int flag = 0;
     char buf[sizeof(struct in_addr)];
+
     
     flag = inet_pton(AF_INET, IPv4, buf);
     if(flag != 1){
@@ -33,8 +34,8 @@ int validar_IPv4 (char* IPv4){
 
 //Validar port number introduzido
 int validar_port(char* port){
-
     int port_number = atoi(port);
+
 
     if(port_number>65536 || port_number<1){
         printf("Error found: port number inserted is not valid\n");
@@ -45,10 +46,9 @@ int validar_port(char* port){
 
 //Validação do comando que inicia o programa
 void validate_start(int argc, char* argv[]){
-    //Variables
     int flag = 0;
 
-    //validation
+
     if(argc < 3 || argc == 4){
         printf("Error found: %s\n", strerror(EINVAL));
         instructions();
@@ -60,33 +60,22 @@ void validate_start(int argc, char* argv[]){
         exit(1);
     }
 
-    /*
-    if(argc==3){
-        
-    }
-    if(argc==5){
-        strcpy(serv_IP,argv[3]);
-        strcpy(serv_UDP_port,argv[4]);
-    }
-    */
     flag += validar_IPv4(argv[1]);
     flag += validar_port(argv[2]);
 
     if(argc > 3){
         flag += validar_IPv4(argv[3]);
         flag += validar_port(argv[4]);
-    } else{
-        /*
-        serv_IP = "193.136.138.142";
-        serv_UDP_port = "59000";
-        */
     }
     
     if(flag != 0){
         instructions();
         exit(1);
     }
-
-
     return;
+}
+
+int user_interface(){
+
+    return 0;
 }
