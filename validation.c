@@ -98,31 +98,28 @@ void validate_start(int argc, char *argv[])
 
 void user_interface()
 {
-    //variables
-    char nodeid[BUF_SIZE];
-    char command1[BUF_SIZE];
-    char command2[BUF_SIZE];
-    char bootIP[16];
-    char bootTCP[6];
+    char arguments[5][BUF_SIZE];
     int flag;
     char buffer[BUF_SIZE] ;
 
-    //code
+    //verificar o que foi escrito na consola
     if(fgets(buffer, BUF_SIZE, stdin) == NULL)
     {
         printf("Invalid command\n");
         return;
     }
-    flag = sscanf(buffer, "%s %s %s %s %s", command1, command2, nodeid, bootIP, bootTCP);
+    //distribuir em variáveis o que foi escrito na consola
+    flag = sscanf(buffer, "%s %s %s %s %s", arguments[0], arguments[1], arguments[2], arguments[3], arguments[4]);
 
-    if (strcmp(command1, "join") == 0  && state == notreg)
+    //avaliar o comando dado pela consola segundo a cadeia de condições possíveis
+    if (strcmp(arguments[0], "join") == 0  && state == notreg)
     {
         if (flag == 3)
         {
-            join_complicated(command2, nodeid);
+            join_complicated(arguments[1], arguments[2]);
         }
 
-        else if (flag == 5 && validar_IPv4(bootIP) == 0 && validar_port(bootTCP) == 0)
+        else if (flag == 5 && validar_IPv4(arguments[3]) == 0 && validar_port(arguments[4]) == 0)
         {
             //join_simple();
         }
@@ -132,32 +129,32 @@ void user_interface()
             printf("Deu shit, go back");
         }
     }
-    else if (strcmp(command1, "create") && flag == 2 && state != notreg)
+    else if (strcmp(arguments[0], "create") == 0 && flag == 2 && state != notreg)
     {
         //create_node(); //exemplo
     }
-    else if (strcmp(command1, "get") && flag == 2 && state != notreg)
+    else if (strcmp(arguments[0], "get") == 0 && flag == 2 && state != notreg)
     {
     }
-    else if (((strcmp(command1, "show") && flag == 2) || (((strcmp(command1, "st") || strcmp(command1, "sr") || strcmp(command1, "sc")) && (flag == 1)))) && state != notreg)
+    else if (((strcmp(arguments[0], "show") == 0 && flag == 2) || (((strcmp(arguments[0], "st") || strcmp(arguments[0], "sr") || strcmp(arguments[0], "sc")) && (flag == 1)))) && state != notreg)
     {
 
-        if (strcmp(command2, "topology") || strcmp(command1, "st"))
+        if (strcmp(arguments[1], "topology") == 0 || strcmp(arguments[0], "st") == 0)
         {
         }
 
-        else if (strcmp(command2, "routing") || strcmp(command1, "sr"))
+        else if (strcmp(arguments[1], "routing") == 0 || strcmp(arguments[0], "sr") == 0)
         {
         }
 
-        else if (strcmp(command2, "cache") || strcmp(command1, "sc"))
+        else if (strcmp(arguments[1], "cache") == 0 || strcmp(arguments[0], "sc") == 0)
         {
         }
     }
-    else if (strcmp(command1, "leave") && flag == 1 && state != notreg)
+    else if (strcmp(arguments[0], "leave") == 0 && flag == 1 && state != notreg)
     {
     }
-    else if (strcmp(command1, "exit") && flag == 1)
+    else if (strcmp(arguments[0], "exit") == 0 && flag == 1)
     {
     }
     //se não for encontrado qualquer comando da lista
