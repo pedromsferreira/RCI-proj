@@ -10,20 +10,18 @@
 #include "validation.h"
 #include "network.h"
 
-#define BUF_SIZE 1024
-
 //default IP e UDP port
 char defaultIP[16] = "193.136.138.142";
 char defaultUDP[6] = "59000";
 
 //Initialize socket for UDP connection
-void UDP_socket(int argc, char *IP, char *UDP)
+void UDP_socket(int argc, char *IP, char *UDP, int *sockfd)
 {
-    //Variables
+    struct addrinfo hints;
     int flag;
 
-    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sockfd == -1)
+    *sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (*sockfd == -1)
     {
         printf("Error: %s\n", strerror(errno));
         exit(1);
@@ -46,20 +44,61 @@ void UDP_socket(int argc, char *IP, char *UDP)
     return;
 }
 
+/*
+Initialize socket for TCP connection with client
+Return:
+    fd if successfull
+    -1 if something went wrong
+*/
+int TCP_client(int argc, char *IP, char *TCP, struct addrinfo *res)
+{
+
+    int sockfd, flag = 0;
+    struct addrinfo hints;
+
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd == -1)
+    {
+        printf("Error: %s\n", strerror(errno));
+        return -1;
+    }
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    flag = getaddrinfo(IP, TCP, &hints, &res);
+    if (flag != 0)
+    {
+        printf("Error: %s\n", gai_strerror(flag));
+        return -1;
+    }
+
+    flag = connect(sockfd, res->ai_addr, res->ai_addrlen);
+    if (flag != 0)
+    {
+        printf("Error: %s\n", gai_strerror(flag));
+        return -1;
+    }
+
+    return sockfd;
+}
+
 void state_machine(int argc, char *argv[])
 {
     //Variables
-    int fd_ready, maxfd;
+    int fd_ready, maxfd, sock_server, flag = 0;
     fd_set read_fd;
 
     //iniciar conexão ao servidor
     //preparar o socket UDP
-    UDP_socket(argc, argv[3], argv[4]);
+    UDP_socket(argc, argv[3], argv[4], &sock_server);
 
     //entrar na máquina de estados como not registered
     state = notreg;
 
-    printf("\nndn> "); fflush(stdout);
+    printf("\nndn> ");
+    fflush(stdout);
 
     while (state != exiting)
     {
@@ -97,15 +136,43 @@ void state_machine(int argc, char *argv[])
                 if (FD_ISSET(0, &read_fd))
                 {
                     FD_CLR(0, &read_fd);
-
-                    user_interface();
+                    flag = user_interface(sock_server);
+                    if (flag == -1)
+                    {
+                        printf("\nndn> ");
+                        fflush(stdout);
+                        continue;
+                    }
                 }
-                
                 break;
             case reg:
+                //if stdin (fd = 0) interreptud select
+                if (FD_ISSET(0, &read_fd))
+                {
+                    FD_CLR(0, &read_fd);
+                    flag = user_interface(sock_server);
+                    if (flag == -1)
+                    {
+                        printf("\nndn> ");
+                        fflush(stdout);
+                        continue;
+                    }
+                }
                 break;
             case exiting:
                 break;
+                //if stdin (fd = 0) interreptud select
+                if (FD_ISSET(0, &read_fd))
+                {
+                    FD_CLR(0, &read_fd);
+                    flag = user_interface(sock_server);
+                    if (flag == -1)
+                    {
+                        printf("\nndn> ");
+                        fflush(stdout);
+                        continue;
+                    }
+                }
             }
         }
     }
@@ -114,7 +181,7 @@ void state_machine(int argc, char *argv[])
 }
 
 //Espera por resposta do servidor no máximo 10s
-void wait_for_answer()
+void wait_for_answer(int sockfd)
 {
     int counter = 0;
     fd_set read_fd;
@@ -131,38 +198,66 @@ void wait_for_answer()
         if (counter <= 0)
         {
             printf("Timeout while waiting for server. Returning...\n");
-            user_interface();
+            user_interface(sockfd);
         }
     }
     return;
 }
-
-//Pede a lista de nós do servidor através do socket UDP
-void ask_list(char *netID)
+/*
+Pede a lista de nós do servidor através do socket UDP
+Return
+    0 = good
+    -1 = bad
+*/
+int ask_list(char *netID, int sockfd)
 {
+    int i = 0;
     char buffer[BUF_SIZE + 5] = "NODES ";
-    char list[1024];
+    char list[65536];
+    char *token;
+
     struct sockaddr addr;
     socklen_t addrlen;
-
-
-    //list = (char*) malloc(BUF_SIZE * 10);
 
     strcat(buffer, netID); //buffer = NODES NETID
 
     if (sendto(sockfd, buffer, strlen(buffer) + 1, 0, server_info->ai_addr, server_info->ai_addrlen) == -1)
     {
         printf("Error: %s\n", strerror(errno));
-        user_interface();
+        return -1;
     }
 
-    wait_for_answer();
+    wait_for_answer(sockfd);
 
     if (recvfrom(sockfd, list, sizeof(list) + 1, 0, &addr, &addrlen) == -1)
     {
         printf("Error: %s\n", strerror(errno));
-        user_interface();
+        return -1;
     }
-    printf("%s", list);
-    //return list;
+    //Lê a listlista de nodes que vem do servidor
+    token = strtok(list, "\n");
+    token = strtok(NULL, "\n");
+    while (token != NULL)
+    {
+        sscanf(token, "%s %s", nodeslist[i].IP, nodeslist[i].TCP);
+        i++;
+        token = strtok(NULL, "\n");
+    }
+    for (int j = 0; j < i; j++)
+    {
+        printf("IP --> %s\n", nodeslist[j].IP);
+        printf("TCP --> %s\n", nodeslist[j].TCP);
+    }
+    return 0;
+}
+
+
+//Randomiza o nó da lista a que vai buscar
+int random_picker(int list_number)
+{
+
+    //srand(time(0));
+
+    int random_node = (rand() % list_number);
+    return random_node;
 }

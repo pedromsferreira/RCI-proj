@@ -10,8 +10,6 @@
 #include "network.h"
 #include "commands.h"
 
-#define BUF_SIZE 1024
-
 //Instruções para dar input corretamente após erro no terminal
 void instructions()
 {
@@ -96,37 +94,40 @@ void validate_start(int argc, char *argv[])
     return;
 }
 
-void user_interface()
+/*
+Validar comando inserido durante a sessão no stdin
+Return:
+    0 quando o comando for conhecido e bem executado
+    -1 quando o contrário
+*/
+int user_interface(int sockfd)
 {
     char arguments[5][BUF_SIZE];
-    int flag;
-    char buffer[BUF_SIZE] ;
+    int flag, error;
+    char buffer[BUF_SIZE];
 
     //verificar o que foi escrito na consola
-    if(fgets(buffer, BUF_SIZE, stdin) == NULL)
+    if (fgets(buffer, BUF_SIZE, stdin) == NULL)
     {
         printf("Invalid command\n");
-        return;
+        return -1;
     }
     //distribuir em variáveis o que foi escrito na consola
     flag = sscanf(buffer, "%s %s %s %s %s", arguments[0], arguments[1], arguments[2], arguments[3], arguments[4]);
 
     //avaliar o comando dado pela consola segundo a cadeia de condições possíveis
-    if (strcmp(arguments[0], "join") == 0  && state == notreg)
+    if (strcmp(arguments[0], "join") == 0 && state == notreg)
     {
         if (flag == 3)
         {
-            join_complicated(arguments[1], arguments[2]);
+            error = join_complicated(arguments[1], arguments[2], sockfd);
+            if (error == 0)
+                return 0;
         }
 
         else if (flag == 5 && validar_IPv4(arguments[3]) == 0 && validar_port(arguments[4]) == 0)
         {
             //join_simple();
-        }
-
-        else
-        {
-            printf("Deu shit, go back");
         }
     }
     else if (strcmp(arguments[0], "create") == 0 && flag == 2 && state != notreg)
@@ -136,7 +137,7 @@ void user_interface()
     else if (strcmp(arguments[0], "get") == 0 && flag == 2 && state != notreg)
     {
     }
-    else if (((strcmp(arguments[0], "show") == 0 && flag == 2) || (((strcmp(arguments[0], "st") || strcmp(arguments[0], "sr") || strcmp(arguments[0], "sc")) && (flag == 1)))) && state != notreg)
+    else if (((strcmp(arguments[0], "show") == 0 && flag == 2) || (((strcmp(arguments[0], "st") || strcmp(arguments[0], "sr") || strcmp(arguments[0], "sc")) && flag == 1))) && state != notreg)
     {
 
         if (strcmp(arguments[1], "topology") == 0 || strcmp(arguments[0], "st") == 0)
@@ -157,11 +158,8 @@ void user_interface()
     else if (strcmp(arguments[0], "exit") == 0 && flag == 1)
     {
     }
-    //se não for encontrado qualquer comando da lista
-    else
-    {
-        printf("Deu shit, go back");
-    }
 
-    return;
+    //se não for encontrado qualquer comando da lista
+    printf("Invalid command\n");
+    return -1;
 }
