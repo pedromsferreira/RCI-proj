@@ -136,7 +136,7 @@ void state_machine(int argc, char *argv[])
                 if (FD_ISSET(0, &read_fd))
                 {
                     FD_CLR(0, &read_fd);
-                    flag = user_interface(sock_server);
+                    flag = user_interface(sock_server, argv);
                     if (flag == -1)
                     {
                         printf("\nndn> ");
@@ -150,7 +150,7 @@ void state_machine(int argc, char *argv[])
                 if (FD_ISSET(0, &read_fd))
                 {
                     FD_CLR(0, &read_fd);
-                    flag = user_interface(sock_server);
+                    flag = user_interface(sock_server, argv);
                     if (flag == -1)
                     {
                         printf("\nndn> ");
@@ -160,19 +160,8 @@ void state_machine(int argc, char *argv[])
                 }
                 break;
             case exiting:
+                
                 break;
-                //if stdin (fd = 0) interreptud select
-                if (FD_ISSET(0, &read_fd))
-                {
-                    FD_CLR(0, &read_fd);
-                    flag = user_interface(sock_server);
-                    if (flag == -1)
-                    {
-                        printf("\nndn> ");
-                        fflush(stdout);
-                        continue;
-                    }
-                }
             }
         }
     }
@@ -181,7 +170,7 @@ void state_machine(int argc, char *argv[])
 }
 
 //Espera por resposta do servidor no máximo 10s
-void wait_for_answer(int sockfd)
+int wait_for_answer(int sockfd)
 {
     int counter = 0;
     fd_set read_fd;
@@ -198,13 +187,13 @@ void wait_for_answer(int sockfd)
         if (counter <= 0)
         {
             printf("Timeout while waiting for server. Returning...\n");
-            user_interface(sockfd);
+            return -1;
         }
     }
-    return;
+    return 0;
 }
 /*
-Pede a lista de nós do servidor através do socket UDP
+Pede a lista de nós do servidor de nós através do socket UDP
 Return
     0 = good
     -1 = bad
@@ -227,7 +216,8 @@ int ask_list(char *netID, int sockfd)
         return -1;
     }
 
-    wait_for_answer(sockfd);
+    if(wait_for_answer(sockfd) == -1)
+        return -1;
 
     if (recvfrom(sockfd, list, sizeof(list) + 1, 0, &addr, &addrlen) == -1)
     {
@@ -243,6 +233,11 @@ int ask_list(char *netID, int sockfd)
         i++;
         token = strtok(NULL, "\n");
     }
+
+    //Guardar número total de nós
+    n_nodes = i;
+    
+    //print temporário do que a lista deu return
     for (int j = 0; j < i; j++)
     {
         printf("IP --> %s\n", nodeslist[j].IP);
@@ -251,13 +246,3 @@ int ask_list(char *netID, int sockfd)
     return 0;
 }
 
-
-//Randomiza o nó da lista a que vai buscar
-int random_picker(int list_number)
-{
-
-    //srand(time(0));
-
-    int random_node = (rand() % list_number);
-    return random_node;
-}

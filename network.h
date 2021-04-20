@@ -13,13 +13,13 @@ typedef struct nodes{
 enum {reg, notreg, exiting} state;
 struct addrinfo *server_info;
 int n_nodes;
+nodes topology[2];
 nodes nodeslist[3000];
 
 //Headers do ficheiro network.c
 void UDP_socket(int argc, char* IP, char* UDP, int* sockfd);
 void state_machine(int argc, char* argv[]);
-void wait_for_answer(int sockfd);
+int wait_for_answer(int sockfd);
 int ask_list(char *netID, int sockfd);
-int random_picker(int list_number);
 
 #endif

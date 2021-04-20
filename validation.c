@@ -100,7 +100,7 @@ Return:
     0 quando o comando for conhecido e bem executado
     -1 quando o contrário
 */
-int user_interface(int sockfd)
+int user_interface(int sockfd, char* argv[])
 {
     char arguments[5][BUF_SIZE];
     int flag, error;
@@ -120,9 +120,15 @@ int user_interface(int sockfd)
     {
         if (flag == 3)
         {
-            error = join_complicated(arguments[1], arguments[2], sockfd);
+            error = join_complicated(arguments[1], arguments[2], sockfd, argv[1], argv[2]);
             if (error == 0)
+            {
+                state = reg;
                 return 0;
+            }
+                
+            if (error == -1)
+                return -1;
         }
 
         else if (flag == 5 && validar_IPv4(arguments[3]) == 0 && validar_port(arguments[4]) == 0)
@@ -154,6 +160,8 @@ int user_interface(int sockfd)
     }
     else if (strcmp(arguments[0], "leave") == 0 && flag == 1 && state != notreg)
     {
+        //if(leave_server(netID,) == 0)
+            state = notreg;
     }
     else if (strcmp(arguments[0], "exit") == 0 && flag == 1)
     {
