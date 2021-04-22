@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -6,23 +7,28 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <errno.h>
+#include "defines.h"
 #include "validation.h"
 #include "network.h"
 #include "commands.h"
+#include "TCP.h"
+#include "UDP.h"
 
-int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, char *nodeTCP)
+int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, char *nodeTCP, nodes topology[2], nodes* nodeslist)
 {
     //variables
     //comando: REG (espaço) netID (espaço) IP (espaço) TCP
+    int i = 0, flag = 0, left = 0;
     int max_buffer = 4 + strlen(netID) + 1 + strlen(nodeIP) + 1 + 5 + 1;
     int node_externo = 0;
     char bufferREG[max_buffer];
     char confirm_message[6];
+    char *ptr, buffer[BUF_SIZE];
 
     struct sockaddr addr;
     socklen_t addrlen;
 
-    ask_list(netID, sock_server);
+    ask_list(netID, sock_server, nodeslist);
     
     //Caso 1: Lista Vazia --> a topologia é o próprio nó 
     if(n_nodes == 0)
@@ -36,11 +42,39 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
         strcpy(topology[1].TCP,nodeTCP);
     }
 
-    //TCP_client(int argc, char *IP, char *TCP, struct addrinfo *res);
+    
 
     //Caso 2: Lista com só um nó
     if(n_nodes == 1)
     {
+        //Criar processo TCP a ligar ao nó externo
+        
+        node_externo = TCP_client(nodeslist[0].IP, nodeslist[0].TCP, topology[0]);
+    	if(node_externo != -1)
+        {
+            return -1;
+        }
+
+        //Enviar mensagem de presença ao nó externo com o nosso IP e TCP
+        sprintf(buffer, "NEW %s %s\n", nodeIP, nodeTCP);
+        left = strlen(buffer);
+        ptr = buffer;
+
+        while(left > 0)
+        {
+            flag = write(node_externo, ptr, left);
+            //erro na escrita ou closed by peer
+            if(flag == -1 || flag == 0)
+            {
+                return -1;
+            }
+
+            left -= flag;
+            ptr += flag;
+        }
+
+        //Receber mensagem de presença do nó externo com o IP e TCP do vizinho de recuperação deles (neste caso a própria informação)
+        
 
     }
 
@@ -49,9 +83,9 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
     if(n_nodes > 1)
     {
         //Escolher nó a que se liga
-        rand() % n_nodes;
+        //rand() % n_nodes;
 
-        //Criar processo TCP a ligar ao nó externo
+        
     }
     
     

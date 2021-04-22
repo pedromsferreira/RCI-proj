@@ -1,7 +1,7 @@
 CC	 = gcc
 CFLAGS	 = -g -Wall
 LFLAGS =
-OBJFILES = validation.o network.o commands.o main.o 
+OBJFILES = validation.o network.o UDP.o TCP.o defines.o commands.o main.o 
 OUT = ndn
 
 all: $(OUT)

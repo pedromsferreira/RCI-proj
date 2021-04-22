@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <errno.h>
+#include "defines.h"
 #include "validation.h"
 #include "network.h"
 #include "commands.h"
@@ -100,7 +101,7 @@ Return:
     0 quando o comando for conhecido e bem executado
     -1 quando o contrário
 */
-int user_interface(int sockfd, char* argv[])
+int user_interface(int sockfd, char* argv[], nodes topology[2], nodes* nodeslist)
 {
     char arguments[5][BUF_SIZE];
     int flag, error;
@@ -120,7 +121,7 @@ int user_interface(int sockfd, char* argv[])
     {
         if (flag == 3)
         {
-            error = join_complicated(arguments[1], arguments[2], sockfd, argv[1], argv[2]);
+            error = join_complicated(arguments[1], arguments[2], sockfd, argv[1], argv[2], topology, nodeslist);
             if (error == 0)
             {
                 state = reg;
