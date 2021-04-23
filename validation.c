@@ -101,7 +101,7 @@ Return:
     0 quando o comando for conhecido e bem executado
     -1 quando o contrário
 */
-int user_interface(int sockfd, char* argv[], nodes topology[2], nodes* nodeslist)
+int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neighbours)
 {
     char arguments[5][BUF_SIZE];
     int flag, error;
@@ -121,7 +121,7 @@ int user_interface(int sockfd, char* argv[], nodes topology[2], nodes* nodeslist
     {
         if (flag == 3)
         {
-            error = join_complicated(arguments[1], arguments[2], sockfd, argv[1], argv[2], topology, nodeslist);
+            error = join_complicated(arguments[1], arguments[2], sockfd, argv[1], argv[2], neighbours, n_neighbours);
             if (error == 0)
             {
                 state = reg;

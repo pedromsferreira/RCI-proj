@@ -52,7 +52,7 @@ Return
     0 = good
     -1 = bad
 */
-int ask_list(char *netID, int sockfd, nodes* nodeslist)
+int ask_list(char *netID, int sockfd, nodes* nodeslist, int* n_nodes)
 {
     int i = 0;
     char buffer[BUF_SIZE + 5] = "NODES ";
@@ -70,7 +70,7 @@ int ask_list(char *netID, int sockfd, nodes* nodeslist)
         return -1;
     }
 
-    if(wait_for_answer(sockfd) == -1)
+    if(wait_for_answer(sockfd, 2) == -1)
         return -1;
 
     if (recvfrom(sockfd, list, sizeof(list) + 1, 0, &addr, &addrlen) == -1)
@@ -89,7 +89,7 @@ int ask_list(char *netID, int sockfd, nodes* nodeslist)
     }
 
     //Guardar número total de nós
-    n_nodes = i;
+    *n_nodes = i;
     
     //print temporário do que a lista deu return
     for (int j = 0; j < i; j++)

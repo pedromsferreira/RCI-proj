@@ -3,23 +3,31 @@
 
 #define BUF_SIZE 1024
 #define MAX_NODES 600
+#define MAX_NEIGHBOURS 128
 
 //Variáveis únicas
 typedef struct nodes{
     char IP[16];
     char TCP[6];
-    struct addrinfo *node_info;
 }nodes;
 
 typedef struct neighbour{
-    char IP[16];
-    char TCP[6];
+    nodes node;
     int sockfd;
+    struct addrinfo *node_info;
+    char mail[BUF_SIZE*4];
 }neighbour;
+
+typedef struct expedition_table{
+    int sockfd;
+    char id[MAX_NEIGHBOURS][BUF_SIZE];
+}expedition_table;
+
 
 //Global variables
 enum {reg, notreg, exiting} state;
 struct addrinfo *server_info;
-int n_nodes;
+
+int max(neighbour *fd_list, int n);
 
 #endif

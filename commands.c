@@ -14,68 +14,44 @@
 #include "TCP.h"
 #include "UDP.h"
 
-int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, char *nodeTCP, nodes topology[2], nodes* nodeslist)
+int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, char *nodeTCP, neighbour* neighbours, int* n_neighbours)
 {
     //variables
     //comando: REG (espaço) netID (espaço) IP (espaço) TCP
-    int i = 0, flag = 0, left = 0;
     int max_buffer = 4 + strlen(netID) + 1 + strlen(nodeIP) + 1 + 5 + 1;
     int node_externo = 0;
+    int n_nodes;
     char bufferREG[max_buffer];
     char confirm_message[6];
-    char *ptr, buffer[BUF_SIZE];
+    nodes nodeslist[MAX_NODES];
 
     struct sockaddr addr;
     socklen_t addrlen;
 
-    ask_list(netID, sock_server, nodeslist);
+    ask_list(netID, sock_server, nodeslist, &n_nodes);
     
-    //Caso 1: Lista Vazia --> a topologia é o próprio nó 
-    if(n_nodes == 0)
-    {
-        //Guardar vizinho externo
-        strcpy(topology[0].IP,nodeIP);
-        strcpy(topology[0].TCP,nodeTCP);
-
-        //Guardar vizinho de recuperação
-        strcpy(topology[1].IP,nodeIP);
-        strcpy(topology[1].TCP,nodeTCP);
-    }
-
-    
+    //Caso 1: Lista Vazia --> começar listen e entrar só no server
 
     //Caso 2: Lista com só um nó
     if(n_nodes == 1)
     {
         //Criar processo TCP a ligar ao nó externo
-        
-        node_externo = TCP_client(nodeslist[0].IP, nodeslist[0].TCP, topology[0]);
-    	if(node_externo != -1)
+        node_externo = TCP_client(nodeslist[0].IP, nodeslist[0].TCP, neighbours[0].node_info);
+    	if(node_externo == -1)
         {
             return -1;
         }
 
         //Enviar mensagem de presença ao nó externo com o nosso IP e TCP
-        sprintf(buffer, "NEW %s %s\n", nodeIP, nodeTCP);
-        left = strlen(buffer);
-        ptr = buffer;
-
-        while(left > 0)
+        if(write_to_someone(nodeIP, nodeTCP, node_externo, "NEW") == -1)
         {
-            flag = write(node_externo, ptr, left);
-            //erro na escrita ou closed by peer
-            if(flag == -1 || flag == 0)
-            {
-                return -1;
-            }
-
-            left -= flag;
-            ptr += flag;
+            return -1;
         }
 
+        wait_for_answer(node_externo, 2);
         //Receber mensagem de presença do nó externo com o IP e TCP do vizinho de recuperação deles (neste caso a própria informação)
         
-
+        *n_neighbours+=1;
     }
 
 
@@ -87,10 +63,9 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
 
         
     }
-    
-    
-    
-    
+
+    //Criar fd exclusivo a listen
+    neighbours[0].sockfd = TCP_server(nodeTCP, neighbours[0].node_info);
     
     
     //Mandar informação ao servidor a dizer que ligou (REG)
@@ -101,7 +76,7 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
         return -1;
     }
 
-    if(wait_for_answer(sock_server) == -1)
+    if(wait_for_answer(sock_server, 2) == -1)
         return -1;
 
     if (recvfrom(sock_server, confirm_message, sizeof(confirm_message) + 1, 0, &addr, &addrlen) == -1)
@@ -141,7 +116,7 @@ int leave_server(char *netID, int sock_server, char *nodeIP, char *nodeTCP)
         return -1;
     }
 
-    if(wait_for_answer(sock_server) == -1)
+    if(wait_for_answer(sock_server, 2) == -1)
         return -1;
 
     if (recvfrom(sock_server, confirm_message, sizeof(confirm_message) + 1, 0, &addr, &addrlen) == -1)
