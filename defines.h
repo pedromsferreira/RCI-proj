@@ -18,11 +18,12 @@ typedef struct neighbour{
     char mail[BUF_SIZE*4];
 }neighbour;
 
+/*
 typedef struct expedition_table{
-    int sockfd;
+    int n_id;
     char id[MAX_NEIGHBOURS][BUF_SIZE];
 }expedition_table;
-
+*/
 
 //Global variables
 enum {reg, notreg, exiting} state;

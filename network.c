@@ -15,14 +15,16 @@
 #include "TCP.h"
 
 //Gestão dos estados do programa
-void state_machine(int argc, char *argv[])
+void state_machine(int argc, char **argv)
 {
+    
     //Variables
     int fd_ready, maxfd, sock_server, flag = 0, i;
-    int n_neighbours;
+    int n_neighbours = 0; //número de vizinhos
     fd_set read_fd;
     neighbour neighbours[MAX_NEIGHBOURS];
-
+    //expedition_table table;
+    
     //iniciar conexão ao servidor
     //preparar o socket UDP
     sock_server = UDP_socket(argc, argv[3], argv[4]);
@@ -75,7 +77,7 @@ void state_machine(int argc, char *argv[])
                 if (FD_ISSET(0, &read_fd))
                 {
                     FD_CLR(0, &read_fd);
-                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours);
+                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours/*, &table*/);
                     if (flag == -1)
                     {
                         printf("\nndn> ");

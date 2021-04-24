@@ -14,13 +14,14 @@
 #include "network.h"
 
 int main(int argc, char* argv[]){
+    
     struct sigaction act;
     
     memset(&act,0,sizeof act);
     act.sa_handler=SIG_IGN;
     if(sigaction(SIGPIPE,&act,NULL)==-1)
         exit(1);
-
+    
     srand(time(0));
     //Variables
 

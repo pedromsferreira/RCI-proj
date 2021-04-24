@@ -23,7 +23,7 @@ void instructions()
 Validar IPv4 introduzido
 Return:
     0 quando o IP for válido
-    1 quando o contrário
+    -1 quando o contrário
 */
 int validar_IPv4(char *IPv4)
 {
@@ -37,7 +37,7 @@ int validar_IPv4(char *IPv4)
             printf("Error found: IP inserted is not valid\n");
         if (flag == -1)
             printf("Error found: %s\n", strerror(errno));
-        return 1;
+        return -1;
     }
     return 0;
 }
@@ -46,7 +46,7 @@ int validar_IPv4(char *IPv4)
 Validar port number introduzido
 Return:
     0 quando o port number for válido
-    1 quando o contrário
+    -1 quando o contrário
 */
 int validar_port(char *port)
 {
@@ -55,7 +55,7 @@ int validar_port(char *port)
     if (port_number > 65536 || port_number < 1)
     {
         printf("Error found: port number inserted is not valid\n");
-        return 1;
+        return -1;
     }
     return 0;
 }
@@ -101,7 +101,7 @@ Return:
     0 quando o comando for conhecido e bem executado
     -1 quando o contrário
 */
-int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neighbours)
+int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neighbours/*, expedition_table* table*/)
 {
     char arguments[5][BUF_SIZE];
     int flag, error;
@@ -121,7 +121,7 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
     {
         if (flag == 3)
         {
-            error = join_complicated(arguments[1], arguments[2], sockfd, argv[1], argv[2], neighbours, n_neighbours);
+            error = join_complicated(arguments[1], arguments[2], sockfd, argv[1], argv[2], neighbours, n_neighbours/*, table*/);
             if (error == 0)
             {
                 state = reg;
@@ -171,4 +171,56 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
     //se não for encontrado qualquer comando da lista
     printf("Invalid command\n");
     return -1;
+}
+
+/*
+Validar comando enviado por TCP
+Return: 
+    n bytes lidos
+    -1 quando o contrário
+*/
+int validate_messages(char* mail, neighbour node/*, expedition_table table*/, int* i)
+{
+    int flag = 0, read = 0;
+    char buffer[BUF_SIZE];
+    char arguments[5][BUF_SIZE];
+
+    flag = sscanf(mail, "%s", buffer);
+    if(strcmp(buffer, "EXTERN") == 0)
+    {
+        flag = sscanf(mail, "%s %s %s\n", arguments[0], arguments[1], arguments[2]);
+        if(flag != 3)
+        {
+            return -1;
+        }
+        if(validar_IPv4(arguments[1]) == -1 || validar_port(arguments[2]) == -1)
+        {
+            return -1;
+        }
+        strcpy(node.node.IP, arguments[1]);
+        strcpy(node.node.TCP, arguments[2]);
+
+        read = strlen(arguments[0]) + 1 + strlen(arguments[1]) + 1 + strlen(arguments[2]) + 1;
+        
+        return read;
+    }
+
+    if(strcmp(buffer, "ADVERTISE") == 0)
+    {
+        
+        flag = sscanf(mail, "%s %s\n", arguments[0], arguments[1]);
+        if(flag != 2)
+        {
+            return -1;
+        }
+
+        //strcpy(table.id[*i], arguments[1]);
+        *i+=1;
+
+        read = strlen(arguments[0]) + 1 + strlen(arguments[1]) + 1;
+        return read;
+    }
+
+    //se não parou, não existe
+    return 0;
 }

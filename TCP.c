@@ -126,36 +126,31 @@ int write_to_someone(char* nodeIP, char* nodeTCP, int nodefd, char* command)
 }
 
 /*
-Send a message through TCP
+Read a message through TCP
 Return:
     0 if successfull
     -1 if something went wrong
 */
-int read_join(neighbour* placeholder)
+int read_join(neighbour placeholder)
 {
     int received = 1, total = 0;
     char *ptr;
 
     //Pointer no início da string
-    ptr = placeholder->mail;
+    ptr = placeholder.mail;
     
+    //Guardar mensagem
     while(received != 0)
     {
-        received = read(placeholder->sockfd, ptr, BUF_SIZE*4);
-        
-        ptr += received;
-        total += received;
+        received = read(placeholder.sockfd, ptr, BUF_SIZE*4);
         if(received == -1)
             return -1;
+
+        ptr += received;
+        total += received;
     }
     
-    //Identificar se mensagem está completa ou não
-    
-    //Identificar se mensagem é lixo ou não
-    
-
-    
-    //enviado com sucesso
+    //lida com sucesso
     return 0;
 }
 

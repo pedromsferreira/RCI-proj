@@ -14,15 +14,16 @@
 #include "TCP.h"
 #include "UDP.h"
 
-int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, char *nodeTCP, neighbour* neighbours, int* n_neighbours)
+int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, char *nodeTCP, neighbour* neighbours, int* n_neighbours/*, expedition_table* table*/)
 {
     //variables
     //comando: REG (espaço) netID (espaço) IP (espaço) TCP
     int max_buffer = 4 + strlen(netID) + 1 + strlen(nodeIP) + 1 + 5 + 1;
     int node_externo = 0;
-    int n_nodes;
+    int n_nodes, nleft = 0, n_id = 0, flag;
     char bufferREG[max_buffer];
     char confirm_message[6];
+    char* ptr;
     nodes nodeslist[MAX_NODES];
 
     struct sockaddr addr;
@@ -36,7 +37,7 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
     if(n_nodes == 1)
     {
         //Criar processo TCP a ligar ao nó externo
-        node_externo = TCP_client(nodeslist[0].IP, nodeslist[0].TCP, neighbours[0].node_info);
+        node_externo = TCP_client(nodeslist[0].IP, nodeslist[0].TCP, neighbours[1].node_info);
     	if(node_externo == -1)
         {
             return -1;
@@ -48,9 +49,38 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
             return -1;
         }
 
-        wait_for_answer(node_externo, 2);
-        //Receber mensagem de presença do nó externo com o IP e TCP do vizinho de recuperação deles (neste caso a própria informação)
-        
+        //Confirmar presença de um buffer para leitura
+        wait_for_answer(node_externo, 200);
+
+        //Receber mensagem de presença do nó externo com o IP e TCP do vizinho de recuperação deles (neste caso a própria informação), e ADVERTISEs
+        if(read_join(neighbours[1]) == -1)
+        {
+            return -1;
+        }
+
+        //Apurar mensagens recebidas
+        nleft = strlen(neighbours[1].mail);
+        if(nleft <= 0)
+        {
+            return -1;
+        }
+
+        ptr = neighbours[1].mail;
+
+        while(nleft > 0)
+        {
+            flag = validate_messages(ptr, neighbours[1]/*, table[1]*/, &n_id);
+            if(flag == -1)
+            {
+                return -1;
+            }
+
+            nleft -= flag;
+            ptr += flag;
+        }
+
+        //info que falta guardar
+        neighbours[1].sockfd = node_externo;
         *n_neighbours+=1;
     }
 
