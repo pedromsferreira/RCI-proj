@@ -13,20 +13,20 @@ typedef struct nodes{
 
 typedef struct neighbour{
     nodes node;
-    int sockfd;
+    int sockfd; 
     struct addrinfo *node_info;
-    char mail[BUF_SIZE*4];
+    char mail_sent[BUF_SIZE*4];
 }neighbour;
 
 /*
 typedef struct expedition_table{
     int n_id;
-    char id[MAX_NEIGHBOURS][BUF_SIZE];
+    
 }expedition_table;
 */
 
 //Global variables
-enum {reg, notreg, exiting} state;
+enum {reg, lonereg, notreg, exiting} state;
 struct addrinfo *server_info;
 
 int max(neighbour *fd_list, int n);

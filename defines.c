@@ -13,7 +13,7 @@ int max(neighbour *fd_list, int n)
 {
     int i, maxfd = 0;
 
-    for(i = 0; i < n; i++)
+    for(i = 0; i <= n; i++)
     {
         if(maxfd < fd_list[i].sockfd)
         {

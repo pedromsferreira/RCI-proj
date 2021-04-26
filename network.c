@@ -21,19 +21,34 @@ void state_machine(int argc, char **argv)
     //Variables
     int fd_ready, maxfd, sock_server, flag = 0, i;
     int n_neighbours = 0; //número de vizinhos
+    char netID[BUF_SIZE];
     fd_set read_fd;
+
+    //Tabela de nós
+    //Posições definidas:
+    //  0 - próprio nó
+    //  1 - vizinho externo
+    //  2 - vizinho de recuperação
     neighbour neighbours[MAX_NEIGHBOURS];
+
     //expedition_table table;
-    
+
+    //inicializar variáveis
+    for(i = 0; i < MAX_NEIGHBOURS; i++)
+    {
+        memset(neighbours[i].mail_sent, '\0', BUF_SIZE*4);
+    }
+
+    //Establecer neighbour 0 como o programa ndn
+    strcpy(neighbours[0].node.IP, argv[1]);
+    strcpy(neighbours[0].node.TCP, argv[2]);
+
     //iniciar conexão ao servidor
     //preparar o socket UDP
     sock_server = UDP_socket(argc, argv[3], argv[4]);
 
     //entrar na máquina de estados como not registered
     state = notreg;
-
-    printf("\nndn> ");
-    fflush(stdout);
 
     while (state != exiting)
     {
@@ -46,17 +61,29 @@ void state_machine(int argc, char **argv)
             FD_SET(0, &read_fd);
             maxfd = 0;
             break;
-        case reg:
+        case lonereg:
             FD_SET(0, &read_fd);
-            for(i = 0; i < n_neighbours; i++)
+            for(i = 0; i <= n_neighbours; i++)
             {
                 FD_SET(neighbours[i].sockfd, &read_fd);
             }
             maxfd = max(neighbours, n_neighbours);
             break;
+        case reg:
+            FD_SET(0, &read_fd);
+            for(i = 0; i <= n_neighbours + 1; i++)
+            {
+                FD_SET(neighbours[i].sockfd, &read_fd);
+            }
+            maxfd = max(neighbours, n_neighbours + 1);
+            break;
         case exiting:
             break;
         }
+
+        printf("\nndn> ");
+        fflush(stdout);
+
 
         //await for fds ready to be read
         fd_ready = select(maxfd + 1, &read_fd, (fd_set *)NULL, (fd_set *)NULL, (struct timeval *)NULL);
@@ -64,7 +91,7 @@ void state_machine(int argc, char **argv)
         if (fd_ready <= 0)
         {
             printf("Error during select: %s\n", strerror(errno));
-            //exit strat goes here
+            //exit strat goes here poque é que essta preso idk, devia tar a receber uma mensagem mas não aparece nada
         }
 
         for (; fd_ready; fd_ready -= 1)
@@ -77,24 +104,118 @@ void state_machine(int argc, char **argv)
                 if (FD_ISSET(0, &read_fd))
                 {
                     FD_CLR(0, &read_fd);
-                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours/*, &table*/);
+
+                    //tratar do comando introduzido na consola
+                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID/*, &table*/);
+                    if (flag == 1)
+                    {
+                        printf("Closing program...\n");
+                        continue;
+                    }
+                    
                     if (flag == -1)
                     {
-                        printf("\nndn> ");
-                        fflush(stdout);
                         continue;
                     }
                 }
                 break;
+            case lonereg:
+                //if stdin (fd = 0) interreptud select
+                if (FD_ISSET(0, &read_fd))
+                {
+                    FD_CLR(0, &read_fd);
+
+                    //tratar do comando introduzido na consola
+                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID/*, &table*/);
+                    if (flag == 1)
+                    {
+                        printf("Closing program...\n");
+                        continue;
+                    }
+                    if (flag == -1)
+                    {
+                        continue;
+                    }
+                }
+                //se for o listen fd que deu trigger ao select
+                if (FD_ISSET(neighbours[0].sockfd, &read_fd))
+                {
+                    FD_CLR(neighbours[0].sockfd, &read_fd);
+
+                    //dar accept da conexão
+                    n_neighbours++;
+                    neighbours[n_neighbours].sockfd = accept_connection(neighbours[0].sockfd, neighbours[0]);
+                    if(neighbours[n_neighbours].sockfd == -1)
+                    {
+                        n_neighbours--;
+                        continue;
+                    }
+                    printf("New node joining the network.\n");
+                }
+                //se for o vizinho externo que deu trigger ao select
+                if (FD_ISSET(neighbours[1].sockfd, &read_fd))
+                {
+                    FD_CLR(neighbours[1].sockfd, &read_fd);
+                    //ler buffer
+                    if(read_from_someone(neighbours, 1, n_neighbours) == 1)
+                    {
+                        write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours[1].sockfd, "EXTERN");
+
+                        //if everything OK -- state is now reg
+                        state = reg;
+                    }
+                }
+                break;
             case reg:
-                
+                //if stdin (fd = 0) interreptud select
+                if (FD_ISSET(0, &read_fd))
+                {
+                    FD_CLR(0, &read_fd);
+
+                    //tratar do comando introduzido na consola
+                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID/*, &table*/);
+                    if (flag == 1)
+                    {
+                        printf("Closing program...\n");
+                        continue;
+                    }
+                    if (flag == -1)
+                    {
+                        continue;
+                    }
+                }
+                //se for o listen fd que deu trigger ao select
+                if (FD_ISSET(neighbours[0].sockfd, &read_fd))
+                {
+                    FD_CLR(neighbours[0].sockfd, &read_fd);
+                    //dar accept da conexão
+                    n_neighbours++;
+                    neighbours[n_neighbours+1].sockfd = accept_connection(neighbours[0].sockfd, neighbours[0]);
+                    if(neighbours[n_neighbours+1].sockfd == -1)
+                    {
+                        n_neighbours--;
+                        continue;
+                    }
+                    printf("New node joining the network.\n");
+                }
+                //se for uma ligação dos nós já registados
+                for(i = 1; i <= n_neighbours + 1; i++)
+                {
+                    if(FD_ISSET(neighbours[i].sockfd, &read_fd))
+                    {
+                        if(read_from_someone(neighbours, i, n_neighbours) == 1)
+                        {
+                            write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours[i].sockfd, "EXTERN");
+                        }
+                    }
+                }
                 break;
             case exiting:
-                
                 break;
             }
         }
     }
+    //fechar resto dos sockets
     close(sock_server);
     return;
 }

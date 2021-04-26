@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/ndn",
-            "args": ["95.95.222.75","18612"],
+            "args": ["127.0.0.1","59003"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

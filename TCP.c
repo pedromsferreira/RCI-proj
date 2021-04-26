@@ -8,6 +8,8 @@
 #include <string.h>
 #include <errno.h>
 #include "defines.h"
+#include "validation.h"
+#include "commands.h"
 #include "TCP.h"
 
 
@@ -53,7 +55,7 @@ int TCP_client(char* IP, char* TCP, struct addrinfo* node_info)
     return sockfd;
 }
 
-int TCP_server(char* TCP, struct addrinfo* server_addr)
+int TCP_server(char* TCP, neighbour* neighbours)
 {
     int sockfd, flag;
     struct addrinfo hints;
@@ -67,16 +69,16 @@ int TCP_server(char* TCP, struct addrinfo* server_addr)
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags=AI_PASSIVE;
+    hints.ai_flags = AI_PASSIVE;
 
-    flag = getaddrinfo(NULL, TCP, &hints, &server_addr);
+    flag = getaddrinfo(NULL, TCP, &hints, &neighbours[0].node_info);
     if (flag != 0)
     {
         printf("Error: %s\n", gai_strerror(flag));
         return -1;
     }
 
-    flag = bind(sockfd, server_addr->ai_addr, server_addr->ai_addrlen);
+    flag = bind(sockfd, neighbours[0].node_info->ai_addr, neighbours[0].node_info->ai_addrlen);
     if (flag != 0)
     {
         printf("Error: %s\n", strerror(errno));
@@ -125,32 +127,95 @@ int write_to_someone(char* nodeIP, char* nodeTCP, int nodefd, char* command)
     return 0;
 }
 
-/*
-Read a message through TCP
-Return:
-    0 if successfull
-    -1 if something went wrong
-*/
-int read_join(neighbour placeholder)
+int TCP_command_hub(int flag, neighbour* neighbours, char* mail, int n_neighbours)
 {
-    int received = 1, total = 0;
-    char *ptr;
-
-    //Pointer no início da string
-    ptr = placeholder.mail;
-    
-    //Guardar mensagem
-    while(received != 0)
+    switch(flag)
     {
-        received = read(placeholder.sockfd, ptr, BUF_SIZE*4);
-        if(received == -1)
-            return -1;
+        case 1 :
+            execute_NEW(neighbours, mail, n_neighbours);
+            break;
 
-        ptr += received;
-        total += received;
+        case 2 :
+            execute_EXTERN(neighbours, mail);
+            break;
+
+        case 3 :
+            break;
+
+        case 4 :
+            break;
     }
-    
-    //lida com sucesso
+
     return 0;
 }
 
+/*
+Read a message through TCP
+Return:
+    flag corresponding to command executed
+    -1 if something went wrong
+*/
+int read_from_someone(neighbour* placeholder, int ready_index, int n_neighbours)
+{
+    int received = 0, flag = 0;
+    char *ptr, *ptr2;
+
+    //Pointer no início da string
+    ptr = placeholder[ready_index].mail_sent;
+    ptr2 = placeholder[ready_index].mail_sent;
+
+    //Guardar mensagem na struct, tendo em conta se já tem lá informação
+    received = read(placeholder[ready_index].sockfd, ptr + strlen(placeholder[ready_index].mail_sent), BUF_SIZE*4);
+    if(received == -1)
+        return -1;
+    
+    //não leu nada adicional, return
+    if(received == 0)
+        return 0;
+    
+    //buffer overflow
+    if(strlen(placeholder[ready_index].mail_sent) >= BUF_SIZE*4-1 && strstr(placeholder[ready_index].mail_sent, "\n") == NULL)
+    {
+        placeholder[ready_index].mail_sent[0] = '\0';
+        return 0;
+    }
+
+
+    //Encontrar "\n" na mensagem
+    if(received > 0)
+    {
+        while(1) //Enquanto houver "\n", estará sempre à procura de mais comandos
+        {   
+            ptr2 = strstr(placeholder[ready_index].mail_sent, "\n");
+            if(ptr2 == NULL)
+                return flag;
+
+            //Validar o argumento
+            flag = validate_messages(placeholder[ready_index].mail_sent);
+
+            //Executar o comando 
+            TCP_command_hub(flag, placeholder, placeholder[ready_index].mail_sent, n_neighbours);
+                
+            //Atualiza a string para estar à frente do "\n"
+            ptr2 += 1;
+            strcpy(placeholder[ready_index].mail_sent, ptr2);
+        }
+    }
+    
+    return flag;
+}
+
+int accept_connection(int listenfd, neighbour neighbours)
+{
+    int newfd;
+
+    newfd = accept(listenfd, neighbours.node_info->ai_addr, &neighbours.node_info->ai_addrlen);
+    if(newfd == -1)
+    {
+        return -1;
+    }
+    printf("\nO gigante está entrando\n");
+    printf("\nO gigante já entrou\n");
+
+    return newfd;
+}
