@@ -268,7 +268,7 @@ int exchange_contacts(neighbour *neighbours, int sockfd, int *n_neighbours, int 
     }
 
     //Confirmar presença de um buffer para leitura
-    if (wait_for_answer(sockfd, 500) == -1)
+    if (wait_for_answer(sockfd, 50) == -1)
     {
         close_socket(n_neighbours, neighbours, index);
         return -1;

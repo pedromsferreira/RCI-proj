@@ -22,7 +22,7 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
     int node_externo = 0, flag = 0;
     int n_nodes, *shuffle, i, current = 0;
     char bufferREG[max_buffer];
-    char confirm_message[6];
+    char confirm_message[BUF_SIZE];
     nodes nodeslist[MAX_NODES];
 
     struct sockaddr addr;
@@ -100,13 +100,8 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
                 if (flag == -1 && i == n_nodes - 1)
                 {
                     //fechar listenfd
-                    *n_neighbours -= 1;
                     close_listen(neighbours);
                     return -1;
-                }
-                if(flag == -1)
-                {
-                    *n_neighbours -= 1;
                 }
                 if(flag == 0)
                 {
@@ -148,7 +143,7 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
     }
     if (strcmp(confirm_message, "OKREG") != 0)
     {
-        printf("No confirmation received from server. Returning...\n");
+        printf("%s\n", confirm_message);
         return -1;
     }
 
@@ -173,7 +168,7 @@ int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock
     int max_buffer = 4 + strlen(netID) + 1 + strlen(nodeIP) + 1 + 5 + 1;
     int node_externo = 0;
     char bufferREG[max_buffer];
-    char confirm_message[6];
+    char confirm_message[BUF_SIZE];
 
     struct sockaddr addr;
     socklen_t addrlen;
@@ -238,7 +233,7 @@ int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock
     }
     if (strcmp(confirm_message, "OKREG") != 0)
     {
-        printf("No confirmation received from server. Returning...\n");
+        printf("%s\n", confirm_message);
         return -1;
     }
 
@@ -390,6 +385,7 @@ int close_socket(int *n_neighbours, neighbour *neighbours, int chosen_index)
     if (close(neighbours[chosen_index].sockfd) == -1)
     {
         printf("Error: %s\n", strerror(errno));
+        *n_neighbours -= 1;
         return -1;
     }
     //Se o nó retirado for um interno, move a tabela 1 fila para cima
