@@ -14,7 +14,7 @@
 #include "network.h"
 
 int main(int argc, char* argv[]){
-    
+    //Initialize
     struct sigaction act;
     
     memset(&act,0,sizeof act);
@@ -23,7 +23,6 @@ int main(int argc, char* argv[]){
         exit(1);
     
     srand(time(0));
-    //Variables
 
     //validação dos argumentos da consola
     validate_start(argc, argv);

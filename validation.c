@@ -106,7 +106,7 @@ Return:
 int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neighbours, char* netID/*, expedition_table* table*/)
 {
     char arguments[5][BUF_SIZE];
-    int flag, error, i;
+    int flag, error;
     char buffer[BUF_SIZE];
 
     //verificar o que foi escrito na consola
@@ -139,7 +139,18 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
 
         else if (flag == 5 && validar_IPv4(arguments[3]) == 0 && validar_port(arguments[4]) == 0)
         {
-            //join_simple();
+            error = join_simple(arguments[1], arguments[2], arguments[3], arguments[4], sockfd, argv[1], argv[2], neighbours, n_neighbours/*, expedition_table* table*/);
+            if (error == 0)
+            {
+                strcpy(netID, arguments[1]);
+                return 0;
+            }
+                
+            if (error == -1)
+            {
+                printf("Something went wrong. Please try again.\n");
+                return -1;
+            }
         }
     }
     else if (strcmp(arguments[0], "create") == 0 && flag == 2 && state != notreg)
@@ -169,15 +180,17 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
     else if (strcmp(arguments[0], "leave") == 0 && flag == 1 && state != notreg)
     {
         //de-register
-        leave_server(netID, sockfd, argv[1], argv[2]);
+        if(leave_server(netID, sockfd, argv[1], argv[2]) == -1)
+        {
+            printf("Something went wrong. Please try again.\n");
+            return -1;
+        }
 
         //fechar todos os fds e addrinfo
-        for(i = 0; i < *n_neighbours + 1; i++)
-            close(neighbours[i].sockfd);
-
-        freeaddrinfo(neighbours[0].node_info);
+        close_all_sockets(*n_neighbours, neighbours);
 
         //atualizar o estado
+        *n_neighbours = 0;
         state = notreg;
 
         return 0;
@@ -187,18 +200,17 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
         if(state == reg || state == lonereg)
         {
             //de-register
-            leave_server(netID, sockfd, argv[1], argv[2]);
+            if(leave_server(netID, sockfd, argv[1], argv[2]) == -1)
+            {
+                printf("Something went wrong. Please try again.\n");
+                return -1;
+            }
 
             //fechar todos os fds e addrinfo
-            for(i = 0; i < *n_neighbours + 1; i++)
-            {
-                if(close(neighbours[i].sockfd) == -1)
-                {
-                    return -1;
-                }
-            }
-            freeaddrinfo(neighbours[0].node_info);
+            close_all_sockets(*n_neighbours, neighbours);
         }
+        //atualizar o estado
+        *n_neighbours = 0;
         state = exiting;
         return 1;
     }
@@ -276,7 +288,7 @@ int validate_messages(char* mail)
     }
     if(strcmp(buffer, "ADVERTISE") == 0)
     {
-        //comando conhecido
+        flag = sscanf(mail, "%s \n", arguments[0]);
         return 3;
     }
     if(strcmp(buffer, "WITHDRAW") == 0)

@@ -26,9 +26,9 @@ void state_machine(int argc, char **argv)
 
     //Tabela de nós
     //Posições definidas:
-    //  0 - próprio nó
+    //  0 - próprio nó - não conta como vizinho
     //  1 - vizinho externo
-    //  2 - vizinho de recuperação
+    //  2 - vizinho de recuperação - não conta como vizinho
     neighbour neighbours[MAX_NEIGHBOURS];
 
     //expedition_table table;
@@ -91,7 +91,7 @@ void state_machine(int argc, char **argv)
         if (fd_ready <= 0)
         {
             printf("Error during select: %s\n", strerror(errno));
-            //exit strat goes here poque é que essta preso idk, devia tar a receber uma mensagem mas não aparece nada
+            //exit strat goes here 
         }
 
         for (; fd_ready; fd_ready -= 1)
@@ -149,6 +149,7 @@ void state_machine(int argc, char **argv)
                     {
                         n_neighbours--;
                         continue;
+
                     }
                     printf("New node joining the network.\n");
                 }
@@ -157,7 +158,7 @@ void state_machine(int argc, char **argv)
                 {
                     FD_CLR(neighbours[1].sockfd, &read_fd);
                     //ler buffer
-                    if(read_from_someone(neighbours, 1, n_neighbours) == 1)
+                    if(read_from_someone(neighbours, 1, &n_neighbours) == 1)
                     {
                         write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours[1].sockfd, "EXTERN");
 
@@ -203,7 +204,8 @@ void state_machine(int argc, char **argv)
                 {
                     if(FD_ISSET(neighbours[i].sockfd, &read_fd))
                     {
-                        if(read_from_someone(neighbours, i, n_neighbours) == 1)
+                        FD_CLR(neighbours[i].sockfd, &read_fd);
+                        if(read_from_someone(neighbours, i, &n_neighbours) == 1)
                         {
                             write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours[i].sockfd, "EXTERN");
                         }
@@ -216,7 +218,8 @@ void state_machine(int argc, char **argv)
         }
     }
     //fechar resto dos sockets
-    close(sock_server);
+    close(sock_server); //UDP
+    freeaddrinfo(server_info);
     return;
 }
 
