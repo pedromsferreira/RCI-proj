@@ -101,7 +101,7 @@ Return:
     0 if successfull
     -1 if something went wrong
 */
-int write_to_someone(char *nodeIP, char *nodeTCP, int nodefd, char *command)
+int write_to_someone(char *nodeIP, char *nodeTCP, neighbour* neighbours, char *command, int destination, int* n_neighbours)
 {
     int left = 0, flag = 0;
     char *ptr, buffer[BUF_SIZE];
@@ -112,10 +112,11 @@ int write_to_someone(char *nodeIP, char *nodeTCP, int nodefd, char *command)
 
     while (left > 0)
     {
-        flag = write(nodefd, ptr, left);
-        //erro na escrita ou closed by peer
-        if (flag == -1 || flag == 0)
+        flag = write(neighbours[destination].sockfd, ptr, left);
+        //erro na escrita
+        if (flag == -1)
         {
+            backup_plan(destination, n_neighbours, neighbours);
             return -1;
         }
 
@@ -170,73 +171,7 @@ int read_from_someone(neighbour *placeholder, int ready_index, int *n_neighbours
     //socket fechou ou algo de mal aconteceu
     if (received == 0 || received == -1)
     {
-        if (close_socket(n_neighbours, placeholder, ready_index) == -1)
-        {
-            return -1;
-        }
-        //promover vizinho de recuperação a externo
-        if (ready_index == 1 && *n_neighbours >= 0 && placeholder[2].sockfd != placeholder[0].sockfd)
-        {
-            placeholder[1] = placeholder[2];
-            //Abrir conexão TCP com o antigo nó de recuperação, agora externo
-            placeholder[1].sockfd = TCP_client(placeholder[1].node.IP, placeholder[1].node.TCP,  placeholder[1].node_info);
-
-            if (write_to_someone(placeholder[0].node.IP, placeholder[0].node.TCP, placeholder[1].sockfd, "NEW") == -1)
-            {
-                if (close_socket(n_neighbours, placeholder, 2) == -1)
-                    return -1;
-                if (promote_to_EXTERN(placeholder, n_neighbours) == -1)
-                {
-                    placeholder[1] = placeholder[0];
-                    placeholder[2] = placeholder[0];
-                    state = lonereg;
-                }
-                return 0;
-            }
-
-            //Confirmar presença de um buffer para leitura
-            if (wait_for_answer(placeholder[1].sockfd, 5) == -1)
-            {
-                if (close_socket(n_neighbours, placeholder, 2) == -1)
-                    return -1;
-                if (promote_to_EXTERN(placeholder, n_neighbours) == -1)
-                {
-                    placeholder[1] = placeholder[0];
-                    placeholder[2] = placeholder[0];
-                    state = lonereg;
-                }
-                return 0;
-            }
-
-            if (read_from_someone(placeholder, 1, n_neighbours) == -1)
-            {
-                if (close_socket(n_neighbours, placeholder, 2) == -1)
-                    return -1;
-                if (promote_to_EXTERN(placeholder, n_neighbours) == -1)
-                {
-                    placeholder[1] = placeholder[0];
-                    placeholder[2] = placeholder[0];
-                    state = lonereg;
-                }
-                return 0;
-            }
-        }
-        //se o vizinho de recuperação é o prório
-        else if (ready_index == 1 && *n_neighbours > 0 && placeholder[2].sockfd == placeholder[0].sockfd)
-        {
-            if (promote_to_EXTERN(placeholder, n_neighbours) == -1)
-            {
-                placeholder[1] = placeholder[0];
-                placeholder[2] = placeholder[0];
-                state = lonereg;
-            }
-        }
-        //se o vizinho de recuperação é o prório e não tem vizinhos internos
-        else if (ready_index == 1 && *n_neighbours == 0 && placeholder[2].sockfd == placeholder[0].sockfd)
-        {
-            placeholder[1] = placeholder[0];
-            state = lonereg;
-        }
+        backup_plan(ready_index, n_neighbours, placeholder);
         return received;
     }
 
@@ -304,12 +239,15 @@ int promote_to_EXTERN(neighbour *neighbours, int *n_neighbours)
             if (exchange_contacts(neighbours, neighbours[3].sockfd, n_neighbours, 3) == 0)
             {
                 neighbours[1] = neighbours[3];
+
                 if (*n_neighbours > 1)
                 {
+                    //reordenar vizinhos internos
                     for (i = 3; i < *n_neighbours + 3; i++)
                     {
                         neighbours[i] = neighbours[i + 1];
                     }
+                    //atualizar vizinhos internos com EXTERN
                 }
                 return 0;
             }
@@ -323,7 +261,7 @@ int exchange_contacts(neighbour *neighbours, int sockfd, int *n_neighbours, int 
 {
 
     //Enviar mensagem de presença ao nó externo com o nosso IP e TCP
-    if (write_to_someone(neighbours[0].node.IP, neighbours[0].node.TCP, sockfd, "NEW") == -1)
+    if (write_to_someone(neighbours[0].node.IP, neighbours[0].node.TCP, neighbours, "NEW", index, n_neighbours) == -1)
     {
         close_socket(n_neighbours, neighbours, index);
         return -1;
@@ -341,6 +279,96 @@ int exchange_contacts(neighbour *neighbours, int sockfd, int *n_neighbours, int 
     {
         close_socket(n_neighbours, neighbours, index);
         return -1;
+    }
+    return 0;
+}
+
+int update_RECOVERY(int *n_neighbours, neighbour *neighbours)
+{
+    int i;
+
+    for (i = 3; i < *n_neighbours + 3; i++)
+    {
+        //Enviar mensagem de EXTERN
+        if (write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", i, n_neighbours) == -1)
+        {
+            close_socket(n_neighbours, neighbours, i);
+            i--;
+        }
+    }
+    return 0;
+}
+
+int backup_plan(int ready_index, int* n_neighbours, neighbour* placeholder)
+{
+    if (close_socket(n_neighbours, placeholder, ready_index) == -1)
+    {
+        return -1;
+    }
+    //promover vizinho de recuperação a externo
+    if (ready_index == 1 && *n_neighbours >= 0 && placeholder[2].sockfd != placeholder[0].sockfd)
+    {
+        placeholder[1] = placeholder[2];
+        //Abrir conexão TCP com o antigo nó de recuperação, agora externo
+        placeholder[1].sockfd = TCP_client(placeholder[1].node.IP, placeholder[1].node.TCP, placeholder[1].node_info);
+
+        if (write_to_someone(placeholder[0].node.IP, placeholder[0].node.TCP, placeholder, "NEW", 1, n_neighbours) == -1)
+        {
+            if (close_socket(n_neighbours, placeholder, 2) == -1)
+                return -1;
+            if (promote_to_EXTERN(placeholder, n_neighbours) == -1)
+            {
+                placeholder[1] = placeholder[0];
+                placeholder[2] = placeholder[0];
+                state = lonereg;
+            }
+            return 0;
+        }
+
+        //Confirmar presença de um buffer para leitura
+        if (wait_for_answer(placeholder[1].sockfd, 5) == -1)
+        {
+            if (close_socket(n_neighbours, placeholder, 2) == -1)
+                return -1;
+            if (promote_to_EXTERN(placeholder, n_neighbours) == -1)
+            {
+                placeholder[1] = placeholder[0];
+                placeholder[2] = placeholder[0];
+                state = lonereg;
+            }
+            return 0;
+        }
+
+        if (read_from_someone(placeholder, 1, n_neighbours) == -1)
+        {
+            if (close_socket(n_neighbours, placeholder, 2) == -1)
+                return -1;
+            if (promote_to_EXTERN(placeholder, n_neighbours) == -1)
+            {
+                placeholder[1] = placeholder[0];
+                placeholder[2] = placeholder[0];
+                state = lonereg;
+            }
+            return 0;
+        }
+        //se recuperação for promovido a externo, incrementar vizinhos
+        *n_neighbours+=1;
+    }
+    //se o vizinho de recuperação é o prório
+    else if (ready_index == 1 && *n_neighbours > 0 && placeholder[2].sockfd == placeholder[0].sockfd)
+    {
+        if (promote_to_EXTERN(placeholder, n_neighbours) == -1)
+        {
+            placeholder[1] = placeholder[0];
+            placeholder[2] = placeholder[0];
+            state = lonereg;
+        }
+    }
+    //se o vizinho de recuperação é o prório e não tem vizinhos internos
+    else if (ready_index == 1 && *n_neighbours == 0 && placeholder[2].sockfd == placeholder[0].sockfd)
+    {
+        placeholder[1] = placeholder[0];
+        state = lonereg;
     }
     return 0;
 }

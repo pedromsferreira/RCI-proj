@@ -160,7 +160,7 @@ void state_machine(int argc, char **argv)
                     //ler buffer
                     if(read_from_someone(neighbours, 1, &n_neighbours) == 1)
                     {
-                        write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours[1].sockfd, "EXTERN");
+                        write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", 1, &n_neighbours);
 
                         //if everything OK -- state is now reg
                         state = reg;
@@ -207,7 +207,7 @@ void state_machine(int argc, char **argv)
                         FD_CLR(neighbours[i].sockfd, &read_fd);
                         if(read_from_someone(neighbours, i, &n_neighbours) == 1)
                         {
-                            write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours[i].sockfd, "EXTERN");
+                            write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", 1, &n_neighbours);
                         }
                     }
                 }

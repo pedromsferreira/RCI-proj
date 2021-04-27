@@ -373,9 +373,10 @@ int close_all_sockets(int n_neighbours, neighbour *neighbours)
         {
             continue;
         }
-        else if (close(neighbours[i].sockfd) == -1)
+        else if (neighbours[i].sockfd != 0 && neighbours[i].sockfd != -1)
         {
-            return -1;
+            if(close(neighbours[i].sockfd) == -1)
+                return -1;
         }
     }
     freeaddrinfo(neighbours[0].node_info);
