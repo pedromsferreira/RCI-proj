@@ -22,7 +22,7 @@ Return:
 int TCP_client(char *IP, char *TCP, struct addrinfo *node_info)
 {
 
-    int sockfd, flag = 0;
+    int sockfd, flag = 0, option = 1;
     struct addrinfo hints;
     struct addrinfo *res;
 
@@ -32,6 +32,8 @@ int TCP_client(char *IP, char *TCP, struct addrinfo *node_info)
         printf("Error: %s\n", strerror(errno));
         return -1;
     }
+    //Para se poder reutilizar o socket instantaneamente
+    //setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_INET;
@@ -57,7 +59,7 @@ int TCP_client(char *IP, char *TCP, struct addrinfo *node_info)
 
 int TCP_server(char *TCP, neighbour *neighbours)
 {
-    int sockfd, flag;
+    int sockfd, flag, option = 1;
     struct addrinfo hints;
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -65,6 +67,8 @@ int TCP_server(char *TCP, neighbour *neighbours)
     {
         return -1;
     }
+    //Para se poder reutilizar o socket instantaneamente
+    //setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_INET;
@@ -101,7 +105,7 @@ Return:
     0 if successfull
     -1 if something went wrong
 */
-int write_to_someone(char *nodeIP, char *nodeTCP, neighbour* neighbours, char *command, int destination, int* n_neighbours)
+int write_to_someone(char *nodeIP, char *nodeTCP, neighbour *neighbours, char *command, int destination, int *n_neighbours)
 {
     int left = 0, flag = 0;
     char *ptr, buffer[BUF_SIZE];
@@ -127,16 +131,16 @@ int write_to_someone(char *nodeIP, char *nodeTCP, neighbour* neighbours, char *c
     return 0;
 }
 
-int TCP_command_hub(int flag, neighbour *neighbours, char *mail, int n_neighbours)
+int TCP_command_hub(int flag, neighbour *neighbours, char *mail, int n_neighbours, int ready_index)
 {
     switch (flag)
     {
     case 1:
-        execute_NEW(neighbours, mail, n_neighbours);
+        execute_NEW(neighbours, mail, n_neighbours, ready_index);
         break;
 
     case 2:
-        execute_EXTERN(neighbours, mail);
+        execute_EXTERN(neighbours, mail, ready_index);
         break;
 
     case 3:
@@ -195,7 +199,7 @@ int read_from_someone(neighbour *placeholder, int ready_index, int *n_neighbours
             flag = validate_messages(placeholder[ready_index].mail_sent);
 
             //Executar o comando
-            TCP_command_hub(flag, placeholder, placeholder[ready_index].mail_sent, *n_neighbours);
+            TCP_command_hub(flag, placeholder, placeholder[ready_index].mail_sent, *n_neighbours, ready_index);
 
             //Atualiza a string para estar à frente do "\n"
             ptr2 += 1;
@@ -247,7 +251,8 @@ int promote_to_EXTERN(neighbour *neighbours, int *n_neighbours)
                     {
                         neighbours[i] = neighbours[i + 1];
                     }
-                    //atualizar vizinhos internos com EXTERN
+                    //informar vizinhos internos do novo EXTERN
+                    inform_internal_newEXTERN(n_neighbours, neighbours);
                 }
                 return 0;
             }
@@ -299,22 +304,39 @@ int update_RECOVERY(int *n_neighbours, neighbour *neighbours)
     return 0;
 }
 
-int backup_plan(int ready_index, int* n_neighbours, neighbour* placeholder)
+int backup_plan(int ready_index, int *n_neighbours, neighbour *placeholder)
 {
+    int fd_check;
+
     if (close_socket(n_neighbours, placeholder, ready_index) == -1)
     {
         return -1;
     }
-    //promover vizinho de recuperação a externo
-    if (ready_index == 1 && *n_neighbours >= 0 && placeholder[2].sockfd != placeholder[0].sockfd)
+    //promover vizinho de recuperação a externo se recuperação for diferente dele próprio
+    if (ready_index == 1 && *n_neighbours >= 0 && ((strcmp(placeholder[2].node.IP, placeholder[0].node.IP) != 0) || (strcmp(placeholder[2].node.TCP, placeholder[0].node.TCP) != 0)))
     {
         placeholder[1] = placeholder[2];
         //Abrir conexão TCP com o antigo nó de recuperação, agora externo
         placeholder[1].sockfd = TCP_client(placeholder[1].node.IP, placeholder[1].node.TCP, placeholder[1].node_info);
+        fd_check = placeholder[1].sockfd;
+        *n_neighbours += 1;
+
+        //vizinho de recuperação is AWOL
+        if(fd_check == -1)
+        {
+            //NOT FINISHEDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
+            //Era suposto dar disconnect aqui mas idk how u do that
+            *n_neighbours -= 1;
+            //atualizar para o estado leaving
+            state = leaving;
+            printf("\nYou have been disconnected due to abscence of contacts. Please try rejoining the network\n");
+            //write(0, "leave", strlen("leave"));
+            return 0;
+        }
 
         if (write_to_someone(placeholder[0].node.IP, placeholder[0].node.TCP, placeholder, "NEW", 1, n_neighbours) == -1)
         {
-            if (close_socket(n_neighbours, placeholder, 2) == -1)
+            if (close_socket(n_neighbours, placeholder, 1) == -1)
                 return -1;
             if (promote_to_EXTERN(placeholder, n_neighbours) == -1)
             {
@@ -328,7 +350,7 @@ int backup_plan(int ready_index, int* n_neighbours, neighbour* placeholder)
         //Confirmar presença de um buffer para leitura
         if (wait_for_answer(placeholder[1].sockfd, 5) == -1)
         {
-            if (close_socket(n_neighbours, placeholder, 2) == -1)
+            if (close_socket(n_neighbours, placeholder, 1) == -1)
                 return -1;
             if (promote_to_EXTERN(placeholder, n_neighbours) == -1)
             {
@@ -341,7 +363,7 @@ int backup_plan(int ready_index, int* n_neighbours, neighbour* placeholder)
 
         if (read_from_someone(placeholder, 1, n_neighbours) == -1)
         {
-            if (close_socket(n_neighbours, placeholder, 2) == -1)
+            if (close_socket(n_neighbours, placeholder, 1) == -1)
                 return -1;
             if (promote_to_EXTERN(placeholder, n_neighbours) == -1)
             {
@@ -351,11 +373,11 @@ int backup_plan(int ready_index, int* n_neighbours, neighbour* placeholder)
             }
             return 0;
         }
-        //se recuperação for promovido a externo, incrementar vizinhos
-        *n_neighbours+=1;
+        //se recuperação for promovido a externo, informar vizinhos internos
+        inform_internal_newEXTERN(n_neighbours, placeholder);
     }
     //se o vizinho de recuperação é o prório
-    else if (ready_index == 1 && *n_neighbours > 0 && placeholder[2].sockfd == placeholder[0].sockfd)
+    else if (ready_index == 1 && *n_neighbours > 0 && ((strcmp(placeholder[2].node.IP, placeholder[0].node.IP) == 0) && (strcmp(placeholder[2].node.TCP, placeholder[0].node.TCP) == 0)))
     {
         if (promote_to_EXTERN(placeholder, n_neighbours) == -1)
         {
@@ -365,10 +387,28 @@ int backup_plan(int ready_index, int* n_neighbours, neighbour* placeholder)
         }
     }
     //se o vizinho de recuperação é o prório e não tem vizinhos internos
-    else if (ready_index == 1 && *n_neighbours == 0 && placeholder[2].sockfd == placeholder[0].sockfd)
+    else if (ready_index == 1 && *n_neighbours == 0 && ((strcmp(placeholder[2].node.IP, placeholder[0].node.IP) == 0) && (strcmp(placeholder[2].node.TCP, placeholder[0].node.TCP) == 0)))
     {
         placeholder[1] = placeholder[0];
         state = lonereg;
     }
     return 0;
+}
+
+void inform_internal_newEXTERN(int* n_neighbours, neighbour* neighbours)
+{
+    int i;
+    if (*n_neighbours > 1)
+    {
+        //atualizar vizinhos internos com EXTERN
+        for (i = 3; i < *n_neighbours + 2; i++)
+        {
+            if(write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", i, n_neighbours) == -1)
+            {
+                close_socket(n_neighbours, neighbours, i);
+                i--;
+            }
+        }
+    }
+    return;
 }

@@ -26,7 +26,7 @@ typedef struct expedition_table{
 */
 
 //Global variables
-enum {reg, lonereg, notreg, exiting} state;
+enum {reg, lonereg, notreg, leaving, exiting} state;
 struct addrinfo *server_info;
 
 int max(neighbour *fd_list, int n);

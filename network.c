@@ -29,6 +29,7 @@ void state_machine(int argc, char **argv)
     //  0 - próprio nó - não conta como vizinho
     //  1 - vizinho externo
     //  2 - vizinho de recuperação - não conta como vizinho
+    //  3+ - vizinhos internos
     neighbour neighbours[MAX_NEIGHBOURS];
 
     //expedition_table table;
@@ -37,6 +38,7 @@ void state_machine(int argc, char **argv)
     for(i = 0; i < MAX_NEIGHBOURS; i++)
     {
         memset(neighbours[i].mail_sent, '\0', BUF_SIZE*4);
+        neighbours[i].sockfd = -1;
     }
 
     //Establecer neighbour 0 como o programa ndn
@@ -65,7 +67,8 @@ void state_machine(int argc, char **argv)
             FD_SET(0, &read_fd);
             for(i = 0; i <= n_neighbours; i++)
             {
-                FD_SET(neighbours[i].sockfd, &read_fd);
+                if(neighbours[i].sockfd != -1)
+                    FD_SET(neighbours[i].sockfd, &read_fd);
             }
             maxfd = max(neighbours, n_neighbours);
             break;
@@ -73,17 +76,22 @@ void state_machine(int argc, char **argv)
             FD_SET(0, &read_fd);
             for(i = 0; i <= n_neighbours + 1; i++)
             {
-                FD_SET(neighbours[i].sockfd, &read_fd);
+                if(neighbours[i].sockfd != -1)
+                    FD_SET(neighbours[i].sockfd, &read_fd);
             }
             maxfd = max(neighbours, n_neighbours + 1);
+            break;
+        case leaving:
+            FD_SET(0, &read_fd);
+            maxfd = 0;
             break;
         case exiting:
             break;
         }
 
         printf("\nndn> ");
-        fflush(stdout);
-
+        if(state != leaving)
+            fflush(stdout);
 
         //await for fds ready to be read
         fd_ready = select(maxfd + 1, &read_fd, (fd_set *)NULL, (fd_set *)NULL, (struct timeval *)NULL);
@@ -207,8 +215,28 @@ void state_machine(int argc, char **argv)
                         FD_CLR(neighbours[i].sockfd, &read_fd);
                         if(read_from_someone(neighbours, i, &n_neighbours) == 1)
                         {
-                            write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", 1, &n_neighbours);
+                            write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", i, &n_neighbours);
                         }
+                    }
+                }
+                break;
+            case leaving:
+                //if stdin (fd = 0) interreptud select
+                if (FD_ISSET(0, &read_fd))
+                {
+                    FD_CLR(0, &read_fd);
+
+                    //tratar do comando introduzido na consola
+                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID/*, &table*/);
+                    if (flag == 1)
+                    {
+                        printf("Closing program...\n");
+                        continue;
+                    }
+                    
+                    if (flag == -1)
+                    {
+                        continue;
                     }
                 }
                 break;

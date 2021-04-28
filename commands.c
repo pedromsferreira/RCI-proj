@@ -103,7 +103,7 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
                     close_listen(neighbours);
                     return -1;
                 }
-                if(flag == 0)
+                if (flag == 0)
                 {
                     break;
                 }
@@ -128,22 +128,26 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
     if (sendto(sock_server, bufferREG, strlen(bufferREG) + 1, 0, server_info->ai_addr, server_info->ai_addrlen) == -1)
     {
         printf("Error: %s\n", strerror(errno));
+        close_listen(neighbours);
         return -1;
     }
 
     if (wait_for_answer(sock_server, 2) == -1)
     {
+        close_listen(neighbours);
         return -1;
     }
 
     if (recvfrom(sock_server, confirm_message, sizeof(confirm_message) + 1, 0, &addr, &addrlen) == -1)
     {
         printf("Error: %s\n", strerror(errno));
+        close_listen(neighbours);
         return -1;
     }
     if (strcmp(confirm_message, "OKREG") != 0)
     {
         printf("%s\n", confirm_message);
+        close_listen(neighbours);
         return -1;
     }
 
@@ -188,8 +192,14 @@ int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock
         close_listen(neighbours);
         return -1;
     }
+
     printf("Connection established to someone! Waiting for information...\n");
 
+    //info que falta guardar
+    neighbours[1].sockfd = node_externo;
+    *n_neighbours += 1;
+
+    //tentar comunicar
     if (exchange_contacts(neighbours, node_externo, n_neighbours, 1) == -1)
     {
         //fechar listenfd
@@ -197,21 +207,10 @@ int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock
         return -1;
     }
 
-    //info que falta guardar
-    neighbours[1].sockfd = node_externo;
-    *n_neighbours += 1;
-
-    //Receber mensagem de presença do nó externo com o IP e TCP do vizinho de recuperação deles, e ADVERTISEs
-    if (read_from_someone(neighbours, 1, n_neighbours) == -1)
-    {
-        close_socket(n_neighbours, neighbours, 1);
-        return -1;
-    }
-    printf("Information received! Registering in the nodes server...\n");
-
     //Dar update ao externo do nó na topologia
     strcpy(neighbours[1].node.IP, bootIP);
     strcpy(neighbours[1].node.TCP, bootTCP);
+    printf("Information received! Registering in the nodes server...\n");
 
     //Envio da mensagem de REG
     sprintf(bufferREG, "REG %s %s %s", netID, nodeIP, nodeTCP);
@@ -298,7 +297,7 @@ int leave_server(char *netID, int sock_server, char *nodeIP, char *nodeTCP)
     return 0;
 }
 
-void execute_NEW(neighbour *neighbours, char *mail_sent, int n_neighbours)
+void execute_NEW(neighbour *neighbours, char *mail_sent, int n_neighbours, int ready_index)
 {
     char arguments[3][BUF_SIZE];
 
@@ -306,23 +305,31 @@ void execute_NEW(neighbour *neighbours, char *mail_sent, int n_neighbours)
     sscanf(mail_sent, "%s %s %s\n", arguments[0], arguments[1], arguments[2]);
 
     //guardar info no lugar do vizinho externo se estiver no estado lonereg
-    if (state == lonereg)
+    if (state == lonereg || ready_index == 1)
     {
         strcpy(neighbours[1].node.IP, arguments[1]);
         strcpy(neighbours[1].node.TCP, arguments[2]);
+        return;
     }
     //Guardar Info no Lugar dos Vizinhos Internos
-    if (n_neighbours > 1)
+    else if (n_neighbours > 1)
     {
         strcpy(neighbours[n_neighbours + 2].node.IP, arguments[1]);
         strcpy(neighbours[n_neighbours + 2].node.TCP, arguments[2]);
+        return;
     }
     return;
 }
 
-void execute_EXTERN(neighbour *neighbours, char *mail_sent)
+void execute_EXTERN(neighbour *neighbours, char *mail_sent, int ready_index)
 {
     char arguments[3][BUF_SIZE];
+
+    //ignorar mensagens de outros nós neste caso
+    if (ready_index != 1)
+    {
+        return;
+    }
 
     //ler IP e TCP do vizinho de recuperação
     sscanf(mail_sent, "%s %s %s\n", arguments[0], arguments[1], arguments[2]);
@@ -370,8 +377,9 @@ int close_all_sockets(int n_neighbours, neighbour *neighbours)
         }
         else if (neighbours[i].sockfd != 0 && neighbours[i].sockfd != -1)
         {
-            if(close(neighbours[i].sockfd) == -1)
+            if (close(neighbours[i].sockfd) == -1)
                 return -1;
+            neighbours[i].sockfd = -1;
         }
     }
     freeaddrinfo(neighbours[0].node_info);
@@ -388,6 +396,7 @@ int close_socket(int *n_neighbours, neighbour *neighbours, int chosen_index)
         *n_neighbours -= 1;
         return -1;
     }
+    neighbours[chosen_index].sockfd = -1;
     //Se o nó retirado for um interno, move a tabela 1 fila para cima
     if (chosen_index > 2 && *n_neighbours > 2)
     {
