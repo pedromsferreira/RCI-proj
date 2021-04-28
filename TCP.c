@@ -22,7 +22,7 @@ Return:
 int TCP_client(char *IP, char *TCP, struct addrinfo *node_info)
 {
 
-    int sockfd, flag = 0, option = 1;
+    int sockfd, flag = 0/*, option = 1*/;
     struct addrinfo hints;
     struct addrinfo *res;
 
@@ -59,7 +59,7 @@ int TCP_client(char *IP, char *TCP, struct addrinfo *node_info)
 
 int TCP_server(char *TCP, neighbour *neighbours)
 {
-    int sockfd, flag, option = 1;
+    int sockfd, flag/*, option = 1*/;
     struct addrinfo hints;
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -157,7 +157,7 @@ int TCP_command_hub(int flag, neighbour *neighbours, char *mail, int n_neighbour
 /*
 Read a message through TCP
 Return:
-    flag corresponding to command executed
+    0 if normal procedure
     -1 if something went wrong
 */
 int read_from_someone(neighbour *placeholder, int ready_index, int *n_neighbours)
@@ -176,7 +176,7 @@ int read_from_someone(neighbour *placeholder, int ready_index, int *n_neighbours
     if (received == 0 || received == -1)
     {
         backup_plan(ready_index, n_neighbours, placeholder);
-        return received;
+        return 0;
     }
 
     //buffer overflow
@@ -193,7 +193,7 @@ int read_from_someone(neighbour *placeholder, int ready_index, int *n_neighbours
         {
             ptr2 = strstr(placeholder[ready_index].mail_sent, "\n");
             if (ptr2 == NULL)
-                return flag;
+                return 0;
 
             //Validar o argumento
             flag = validate_messages(placeholder[ready_index].mail_sent);
@@ -207,7 +207,8 @@ int read_from_someone(neighbour *placeholder, int ready_index, int *n_neighbours
         }
     }
 
-    return flag;
+    //you shouldn't be here
+    return -1;
 }
 
 int accept_connection(int listenfd, neighbour neighbours)
@@ -236,29 +237,30 @@ int promote_to_EXTERN(neighbour *neighbours, int *n_neighbours)
 {
     int i;
     //Se tem internos
+    printf("\nChecking if there's an available internal neighbour for connection...\n");
     if (*n_neighbours > 0)
     {
         while (*n_neighbours > 0)
         {
-            if (exchange_contacts(neighbours, neighbours[3].sockfd, n_neighbours, 3) == 0)
+            neighbours[1] = neighbours[3];
+            if (exchange_contacts(neighbours, neighbours[1].sockfd, n_neighbours, 1) == 0)
             {
-                neighbours[1] = neighbours[3];
-
                 if (*n_neighbours > 1)
                 {
                     //reordenar vizinhos internos
-                    for (i = 3; i < *n_neighbours + 3; i++)
+                    for (i = 3; i < *n_neighbours + 2; i++)
                     {
                         neighbours[i] = neighbours[i + 1];
                     }
-                    //informar vizinhos internos do novo EXTERN
-                    inform_internal_newEXTERN(n_neighbours, neighbours);
                 }
+                //informar vizinhos internos do novo EXTERN
+                inform_internal_newEXTERN(n_neighbours, neighbours);
                 return 0;
             }
-            close_socket(n_neighbours, neighbours, 3);
+            printf("Neighbour didn't respond, trying next one...\n");
         }
     }
+    printf("Nobody is home :( . Awaiting for new connections\n");
     return -1;
 }
 
@@ -398,6 +400,8 @@ int backup_plan(int ready_index, int *n_neighbours, neighbour *placeholder)
 void inform_internal_newEXTERN(int* n_neighbours, neighbour* neighbours)
 {
     int i;
+
+    //se tiveres vizinhos internos
     if (*n_neighbours > 1)
     {
         //atualizar vizinhos internos com EXTERN
@@ -408,6 +412,14 @@ void inform_internal_newEXTERN(int* n_neighbours, neighbour* neighbours)
                 close_socket(n_neighbours, neighbours, i);
                 i--;
             }
+        }
+    }
+    //se o teu vizinho interno for promovido a externo, mandar também mensagem
+    if ((strcmp(neighbours[2].node.IP, neighbours[0].node.IP) == 0) && (strcmp(neighbours[2].node.TCP, neighbours[0].node.TCP) == 0))
+    {
+        if(write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", 1, n_neighbours) == -1)
+        {
+            close_socket(n_neighbours, neighbours, i);
         }
     }
     return;
