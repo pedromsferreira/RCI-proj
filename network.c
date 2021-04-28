@@ -166,13 +166,9 @@ void state_machine(int argc, char **argv)
                 {
                     FD_CLR(neighbours[1].sockfd, &read_fd);
                     //ler buffer
-                    if(read_from_someone(neighbours, 1, &n_neighbours) == 1)
-                    {
-                        write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", 1, &n_neighbours);
-
-                        //if everything OK -- state is now reg
-                        state = reg;
-                    }
+                    read_from_someone(neighbours, 1, &n_neighbours);
+                    //if everything OK -- state is now reg
+                    state = reg;
                 }
                 break;
             case reg:
@@ -213,10 +209,7 @@ void state_machine(int argc, char **argv)
                     if(FD_ISSET(neighbours[i].sockfd, &read_fd))
                     {
                         FD_CLR(neighbours[i].sockfd, &read_fd);
-                        if(read_from_someone(neighbours, i, &n_neighbours) == 1)
-                        {
-                            write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", i, &n_neighbours);
-                        }
+                        read_from_someone(neighbours, i, &n_neighbours);
                     }
                 }
                 break;

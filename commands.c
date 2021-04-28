@@ -86,6 +86,7 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
             {
                 //fechar listenfd
                 close_listen(neighbours);
+                free(shuffle);
                 return -1;
             }
             //tentar comunicar
@@ -101,6 +102,7 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
                 {
                     //fechar listenfd
                     close_listen(neighbours);
+                    free(shuffle);
                     return -1;
                 }
                 if (flag == 0)
@@ -309,13 +311,17 @@ void execute_NEW(neighbour *neighbours, char *mail_sent, int n_neighbours, int r
     {
         strcpy(neighbours[1].node.IP, arguments[1]);
         strcpy(neighbours[1].node.TCP, arguments[2]);
+        //após receber mensagem de NEW, enviar EXTERN
+        write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", ready_index, &n_neighbours);
         return;
     }
     //Guardar Info no Lugar dos Vizinhos Internos
     else if (n_neighbours > 1)
     {
-        strcpy(neighbours[n_neighbours + 2].node.IP, arguments[1]);
-        strcpy(neighbours[n_neighbours + 2].node.TCP, arguments[2]);
+        strcpy(neighbours[n_neighbours + 1].node.IP, arguments[1]);
+        strcpy(neighbours[n_neighbours + 1].node.TCP, arguments[2]);
+        //após receber mensagem de NEW, enviar EXTERN
+        write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", ready_index, &n_neighbours);
         return;
     }
     return;
