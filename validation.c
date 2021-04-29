@@ -103,7 +103,7 @@ Return:
     0 quando o comando for conhecido e bem executado
     -1 quando o contrário
 */
-int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neighbours, char* netID/*, expedition_table* table*/)
+int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neighbours, char* netID, expedition_table* table)
 {
     char arguments[5][BUF_SIZE];
     int flag, error;
@@ -123,7 +123,7 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
     {
         if (flag == 3)
         {
-            error = join_complicated(arguments[1], arguments[2], sockfd, argv[1], argv[2], neighbours, n_neighbours/*, table*/);
+            error = join_complicated(arguments[1], arguments[2], sockfd, argv[1], argv[2], neighbours, n_neighbours, table);
             if (error == 0)
             {
                 strcpy(netID, arguments[1]);
@@ -139,7 +139,7 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
 
         else if (flag == 5 && validar_IPv4(arguments[3]) == 0 && validar_port(arguments[4]) == 0)
         {
-            error = join_simple(arguments[1], arguments[2], arguments[3], arguments[4], sockfd, argv[1], argv[2], neighbours, n_neighbours/*, expedition_table* table*/);
+            error = join_simple(arguments[1], arguments[2], arguments[3], arguments[4], sockfd, argv[1], argv[2], neighbours, n_neighbours, table);
             if (error == 0)
             {
                 strcpy(netID, arguments[1]);
@@ -171,6 +171,8 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
 
         else if (strcmp(arguments[1], "routing") == 0 || strcmp(arguments[0], "sr") == 0)
         {
+            print_routing(*table);
+            return 0;
         }
 
         else if (strcmp(arguments[1], "cache") == 0 || strcmp(arguments[0], "sc") == 0)
@@ -187,7 +189,7 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
         }
 
         //fechar todos os fds e addrinfo
-        close_all_sockets(*n_neighbours, neighbours);
+        close_all_sockets(*n_neighbours, neighbours, table);
 
         //atualizar o estado
         *n_neighbours = 0;
@@ -207,7 +209,7 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
             }
 
             //fechar todos os fds e addrinfo
-            close_all_sockets(*n_neighbours, neighbours);
+            close_all_sockets(*n_neighbours, neighbours, table);
         }
         //atualizar o estado
         *n_neighbours = 0;

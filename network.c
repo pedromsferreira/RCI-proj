@@ -11,6 +11,7 @@
 #include "defines.h"
 #include "validation.h"
 #include "network.h"
+#include "commands.h"
 #include "UDP.h"
 #include "TCP.h"
 
@@ -32,14 +33,22 @@ void state_machine(int argc, char **argv)
     //  3+ - vizinhos internos
     neighbour neighbours[MAX_NEIGHBOURS];
 
-    //expedition_table table;
+    //Tabela de expedição
+    //Posições definidas:
+    //  0 - próprio nó
+    //  1+ - outros membros da rede
+    expedition_table table;
 
     //inicializar variáveis
+    //Tabela de nós
     for(i = 0; i < MAX_NEIGHBOURS; i++)
     {
         memset(neighbours[i].mail_sent, '\0', BUF_SIZE*4);
         neighbours[i].sockfd = -1;
     }
+
+    //Tabela de expedição
+    reset_table(&table);
 
     //Establecer neighbour 0 como o programa ndn
     strcpy(neighbours[0].node.IP, argv[1]);
@@ -114,7 +123,7 @@ void state_machine(int argc, char **argv)
                     FD_CLR(0, &read_fd);
 
                     //tratar do comando introduzido na consola
-                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID/*, &table*/);
+                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID, &table);
                     if (flag == 1)
                     {
                         printf("Closing program...\n");
@@ -134,7 +143,7 @@ void state_machine(int argc, char **argv)
                     FD_CLR(0, &read_fd);
 
                     //tratar do comando introduzido na consola
-                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID/*, &table*/);
+                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID, &table);
                     if (flag == 1)
                     {
                         printf("Closing program...\n");
@@ -166,7 +175,7 @@ void state_machine(int argc, char **argv)
                 {
                     FD_CLR(neighbours[1].sockfd, &read_fd);
                     //ler buffer
-                    read_from_someone(neighbours, 1, &n_neighbours);
+                    read_from_someone(neighbours, 1, &n_neighbours, &table);
                     //if everything OK -- state is now reg
                     state = reg;
                 }
@@ -178,7 +187,7 @@ void state_machine(int argc, char **argv)
                     FD_CLR(0, &read_fd);
 
                     //tratar do comando introduzido na consola
-                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID/*, &table*/);
+                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID, &table);
                     if (flag == 1)
                     {
                         printf("Closing program...\n");
@@ -209,18 +218,18 @@ void state_machine(int argc, char **argv)
                     if(FD_ISSET(neighbours[i].sockfd, &read_fd))
                     {
                         FD_CLR(neighbours[i].sockfd, &read_fd);
-                        read_from_someone(neighbours, i, &n_neighbours);
+                        read_from_someone(neighbours, i, &n_neighbours, &table);
                     }
                 }
                 break;
             case leaving:
-                //if stdin (fd = 0) interreptud select
+                //if stdin (fd = 0) interrupted select
                 if (FD_ISSET(0, &read_fd))
                 {
                     FD_CLR(0, &read_fd);
 
                     //tratar do comando introduzido na consola
-                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID/*, &table*/);
+                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID, &table);
                     if (flag == 1)
                     {
                         printf("Closing program...\n");
@@ -266,3 +275,77 @@ int wait_for_answer(int sockfd, int seconds)
     return 0;
 }
 
+
+void insert_ID_in_table (expedition_table* table, int sockfd, char* ID)
+{   
+
+    for(int i = 0; i < table->n_id; i++)
+    {
+        //Se corresponde ao ID
+        if(strcmp(table->id[i], ID) == 0)
+        {
+            return;
+        }
+    }
+    //Copiar valores passados na função para a tabela
+    strcpy(table->id[table->n_id], ID);
+    table->sockfd[table->n_id] = sockfd;
+    
+    //Incrementar número de nós na rede
+    table->n_id++;
+    
+    return;
+}
+
+
+
+void remove_ID_from_table(expedition_table* table, char* ID)
+{
+    //Retirar valores passados na função da tabela
+    for(int i = 0; i < table->n_id; i++)
+    {
+        //Se corresponde ao ID
+        if(strcmp(table->id[i], ID) == 0)
+        {
+            //Dar reset à informação da tabela no índice i
+            memset(table->id[i], '\0', BUF_SIZE);
+            table->sockfd[i] = -1;
+
+            for(int j = i + 1; j < table->n_id; j++)
+            {
+                //Puxar tabela 1 linha para cima
+                strcpy(table->id[j-1], table->id[j]);
+                table->sockfd[j-1] = table->sockfd[j];
+            }
+            //Decrementar número de nós na rede
+            table->n_id--;
+        }
+    }
+    return;
+}
+
+
+void remove_socket_from_table(expedition_table* table, int sockfd)
+{
+    //Retirar valores passados na função da tabela
+    for(int i = 0; i < table->n_id; i++)
+    {
+        //Se corresponde ao socket indicado
+        if(table->sockfd[i] == sockfd)
+        {
+            //Dar reset à informação da tabela no índice i
+            memset(table->id[i], '\0', BUF_SIZE);
+            table->sockfd[i] = -1;
+
+            for(int j = i + 1; j < table->n_id; j++)
+            {
+                //Puxar tabela 1 linha para cima
+                strcpy(table->id[j-1], table->id[j]);
+                table->sockfd[j-1] = table->sockfd[j];
+            }
+            //Decrementar número de nós na rede
+            table->n_id--;
+        }
+    }
+    return;
+}

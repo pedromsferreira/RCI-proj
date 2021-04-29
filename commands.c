@@ -14,7 +14,7 @@
 #include "TCP.h"
 #include "UDP.h"
 
-int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, char *nodeTCP, neighbour *neighbours, int *n_neighbours /*, expedition_table* table*/)
+int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, char *nodeTCP, neighbour *neighbours, int *n_neighbours, expedition_table* table)
 {
     //variables
     //comando: REG (espaço) netID (espaço) IP (espaço) TCP
@@ -37,6 +37,9 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
         return -1;
     }
 
+    //atualizar tabela de expedição na posição 0
+    insert_ID_in_table(table, neighbours[0].sockfd, nodeID);
+
     //Caso 1: Lista Vazia --> começar listen e entrar só no server
     if (n_nodes == 0)
     {
@@ -51,7 +54,7 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
         if (node_externo == -1)
         {
             //fechar listenfd
-            close_listen(neighbours);
+            close_listen(neighbours, table);
             return -1;
         }
         current = 0;
@@ -62,10 +65,10 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
         *n_neighbours += 1;
 
         //tentar comunicar
-        if (exchange_contacts(neighbours, node_externo, n_neighbours, 1) == -1)
+        if (exchange_contacts(neighbours, node_externo, n_neighbours, 1, table) == -1)
         {
             //fechar listenfd
-            close_listen(neighbours);
+            close_listen(neighbours, table);
             return -1;
         }
     }
@@ -85,7 +88,7 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
             if (node_externo == -1 && i == n_nodes - 1)
             {
                 //fechar listenfd
-                close_listen(neighbours);
+                close_listen(neighbours, table);
                 free(shuffle);
                 return -1;
             }
@@ -96,12 +99,12 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
                 neighbours[1].sockfd = node_externo;
                 *n_neighbours += 1;
 
-                flag = exchange_contacts(neighbours, node_externo, n_neighbours, 1);
+                flag = exchange_contacts(neighbours, node_externo, n_neighbours, 1, table);
 
                 if (flag == -1 && i == n_nodes - 1)
                 {
                     //fechar listenfd
-                    close_listen(neighbours);
+                    close_listen(neighbours, table);
                     free(shuffle);
                     return -1;
                 }
@@ -130,26 +133,26 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
     if (sendto(sock_server, bufferREG, strlen(bufferREG) + 1, 0, server_info->ai_addr, server_info->ai_addrlen) == -1)
     {
         printf("Error: %s\n", strerror(errno));
-        close_listen(neighbours);
+        close_listen(neighbours, table);
         return -1;
     }
 
     if (wait_for_answer(sock_server, 2) == -1)
     {
-        close_listen(neighbours);
+        close_listen(neighbours, table);
         return -1;
     }
 
     if (recvfrom(sock_server, confirm_message, sizeof(confirm_message) + 1, 0, &addr, &addrlen) == -1)
     {
         printf("Error: %s\n", strerror(errno));
-        close_listen(neighbours);
+        close_listen(neighbours, table);
         return -1;
     }
     if (strcmp(confirm_message, "OKREG") != 0)
     {
         printf("%s\n", confirm_message);
-        close_listen(neighbours);
+        close_listen(neighbours, table);
         return -1;
     }
 
@@ -169,7 +172,7 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
     return 0;
 }
 //join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, char *nodeTCP, neighbour* neighbours, int* n_neighbours/*, expedition_table* table*/)
-int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock_server, char *nodeIP, char *nodeTCP, neighbour *neighbours, int *n_neighbours /*, expedition_table* table*/)
+int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock_server, char *nodeIP, char *nodeTCP, neighbour *neighbours, int *n_neighbours, expedition_table* table)
 {
     int max_buffer = 4 + strlen(netID) + 1 + strlen(nodeIP) + 1 + 5 + 1;
     int node_externo = 0;
@@ -191,7 +194,7 @@ int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock
     if (node_externo == -1)
     {
         //fechar listenfd
-        close_listen(neighbours);
+        close_listen(neighbours, table);
         return -1;
     }
 
@@ -202,10 +205,10 @@ int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock
     *n_neighbours += 1;
 
     //tentar comunicar
-    if (exchange_contacts(neighbours, node_externo, n_neighbours, 1) == -1)
+    if (exchange_contacts(neighbours, node_externo, n_neighbours, 1, table) == -1)
     {
         //fechar listenfd
-        close_listen(neighbours);
+        close_listen(neighbours, table);
         return -1;
     }
 
@@ -250,11 +253,15 @@ void print_topology(neighbour *neighbours)
 {
     printf("Extern ( ͡° ͜ʖ ͡°) :\n IP --> %s\n TCP --> %s\n", neighbours[1].node.IP, neighbours[1].node.TCP);
     printf("Recovery ( ͡° ͜ʖ ͡°) :\n IP --> %s\n TCP --> %s\n", neighbours[2].node.IP, neighbours[2].node.TCP);
+    return;
 }
 
-void print_routing()
+void print_routing(expedition_table table)
 {
-
+    for(int i = 0; i < table.n_id; i++)
+    {
+        printf("( ͡° ͜ʖ ͡°) : ID --> %s // socket --> %d\n", table.id[i], table.sockfd[i]);
+    }
     return;
 }
 
@@ -299,8 +306,9 @@ int leave_server(char *netID, int sock_server, char *nodeIP, char *nodeTCP)
     return 0;
 }
 
-void execute_NEW(neighbour *neighbours, char *mail_sent, int n_neighbours, int ready_index)
+void execute_NEW(neighbour *neighbours, char *mail_sent, int *n_neighbours, int ready_index, expedition_table* table)
 {
+    int i;
     char arguments[3][BUF_SIZE];
 
     //ler IP e TCP do vizinho de recuperação
@@ -311,17 +319,33 @@ void execute_NEW(neighbour *neighbours, char *mail_sent, int n_neighbours, int r
     {
         strcpy(neighbours[1].node.IP, arguments[1]);
         strcpy(neighbours[1].node.TCP, arguments[2]);
-        //após receber mensagem de NEW, enviar EXTERN
-        write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", ready_index, &n_neighbours);
+        //após receber mensagem de NEW, enviar EXTERN e ADVERTISE
+        write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", ready_index, n_neighbours, table);
+        for(i = 0; i < table->n_id; i++)
+        {
+            //Enviar mensagem de ADVERTISE de todas as entradas da tabela
+            if (write_to_someone(table->id[i], "0", neighbours, "ADVERTISE", ready_index, n_neighbours, table) == -1)
+            {
+                close_socket(n_neighbours, neighbours, ready_index, table);
+            }
+        }
         return;
     }
     //Guardar Info no Lugar dos Vizinhos Internos
-    else if (n_neighbours > 1)
+    else if (*n_neighbours > 1)
     {
-        strcpy(neighbours[n_neighbours + 1].node.IP, arguments[1]);
-        strcpy(neighbours[n_neighbours + 1].node.TCP, arguments[2]);
-        //após receber mensagem de NEW, enviar EXTERN
-        write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", ready_index, &n_neighbours);
+        strcpy(neighbours[*n_neighbours + 1].node.IP, arguments[1]);
+        strcpy(neighbours[*n_neighbours + 1].node.TCP, arguments[2]);
+        //após receber mensagem de NEW, enviar EXTERN e ADVERTISE
+        write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", ready_index, n_neighbours, table);
+        for(i = 0; i < table->n_id; i++)
+        {
+            //Enviar mensagem de ADVERTISE de todas as entradas da tabela
+            if (write_to_someone(table->id[i], "0", neighbours, "ADVERTISE", ready_index, n_neighbours, table) == -1)
+            {
+                close_socket(n_neighbours, neighbours, ready_index, table);
+            }
+        }
         return;
     }
     return;
@@ -347,31 +371,56 @@ void execute_EXTERN(neighbour *neighbours, char *mail_sent, int ready_index)
     return;
 }
 
-void execute_ADVERTISE(neighbour *neighbours, char *mail_sent)
+void execute_ADVERTISE(neighbour *neighbours, char *mail_sent, int ready_index, expedition_table* table, int* n_neighbours)
 {
     char arguments[2][BUF_SIZE];
 
-    //ler ID
+    //Ler ID
     sscanf(mail_sent, "%s %s\n", arguments[0], arguments[1]);
 
-    //Guardar
+    //Guardar na tabela de expedição current socket e ID recebido
+    insert_ID_in_table(table, neighbours[ready_index].sockfd, arguments[1]);
+
+   /* //informar internos caso existam
+    if(*n_neighbours > 0)
+    {
+        //Contactar todos os internos
+        for(int i = 1; i < *n_neighbours + 2; i++)
+        {   
+            if(i == 2)
+                continue;
+
+            //Enviar mensagem de ADVERTISE de todas as entradas da tabela
+            for (int j = 0; j < table->n_id; j++)
+            {
+                if (write_to_someone(table->id[j], "0", neighbours, "ADVERTISE", i, n_neighbours, table) == -1)
+                {
+                    close_socket(n_neighbours, neighbours, i, table);
+                    i--;
+                    break;
+                }
+            }
+        }
+    }*/
+
 
     return;
 }
 
-void execute_WITHDRAW(neighbour *neighbours, char *mail_sent)
+void execute_WITHDRAW(char *mail_sent, expedition_table* table)
 {
     char arguments[2][BUF_SIZE];
 
-    //ler ID
+    //Ler ID
     sscanf(mail_sent, "%s %s\n", arguments[0], arguments[1]);
 
-    //Guardar
+    //Remover da tabela de expedição do ID correspondente o socket e o ID
+    remove_ID_from_table(table, arguments[1]);
 
     return;
 }
 
-int close_all_sockets(int n_neighbours, neighbour *neighbours)
+int close_all_sockets(int n_neighbours, neighbour *neighbours, expedition_table* table)
 {
     int i;
     for (i = 0; i <= n_neighbours + 1; i++)
@@ -388,13 +437,22 @@ int close_all_sockets(int n_neighbours, neighbour *neighbours)
             neighbours[i].sockfd = -1;
         }
     }
+    //Reset à tabela de expedição
+    reset_table(table);
+
     freeaddrinfo(neighbours[0].node_info);
     return 0;
 }
 
-int close_socket(int *n_neighbours, neighbour *neighbours, int chosen_index)
+int close_socket(int *n_neighbours, neighbour *neighbours, int chosen_index, expedition_table* table)
 {
     int i;
+
+    //Remover da tabela de expedição o id correspondente ao socket
+    remove_socket_from_table(table, neighbours[chosen_index].sockfd);
+
+    //mandar withdraws
+
     //Fecho do socket
     if (close(neighbours[chosen_index].sockfd) == -1)
     {
@@ -402,6 +460,8 @@ int close_socket(int *n_neighbours, neighbour *neighbours, int chosen_index)
         *n_neighbours -= 1;
         return -1;
     }
+    
+
     neighbours[chosen_index].sockfd = -1;
     //Se o nó retirado for um interno, move a tabela 1 fila para cima
     if (chosen_index > 2 && *n_neighbours > 2)
@@ -423,13 +483,29 @@ int close_socket(int *n_neighbours, neighbour *neighbours, int chosen_index)
     return 0;
 }
 
-int close_listen(neighbour *neighbours)
+int close_listen(neighbour *neighbours, expedition_table* table)
 {
     if (close(neighbours[0].sockfd) == -1)
     {
         printf("Error: %s\n", strerror(errno));
         return -1;
     }
+
+    //Limpar o
+    remove_socket_from_table(table, neighbours[0].sockfd);
+
     freeaddrinfo(neighbours[0].node_info);
     return 0;
+}
+
+void reset_table(expedition_table* table)
+{
+    //Tabela de ids
+    for(int i = 0; i < MAX_NEIGHBOURS; i++)
+    {
+        memset(table->id[i], '\0', BUF_SIZE);
+        table->sockfd[i] = -1;
+    }
+    table->n_id = 0;
+    return;
 }
