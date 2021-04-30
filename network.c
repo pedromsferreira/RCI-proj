@@ -347,6 +347,7 @@ void remove_socket_from_table(expedition_table *table, int sockfd)
             }
             //Decrementar número de nós na rede
             table->n_id--;
+            i--;
         }
     }
     return;

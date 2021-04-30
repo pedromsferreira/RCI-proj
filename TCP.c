@@ -398,7 +398,7 @@ int backup_plan(int ready_index, int *n_neighbours, neighbour *placeholder, expe
         }
 
         //Confirmar presença de um buffer para leitura
-        if (wait_for_answer(placeholder[1].sockfd, 5) == -1)
+        if (wait_for_answer(placeholder[1].sockfd, 500) == -1)
         {
             if (close_socket(n_neighbours, placeholder, 1, table) == -1)
                 return -1;
