@@ -9,7 +9,7 @@ int leave_server(char *netID, int sock_server, char *nodeIP, char *nodeTCP);
 void execute_NEW(neighbour *neighbours, char *mail_sent, int *n_neighbours, int ready_index, expedition_table* table);
 void execute_EXTERN(neighbour *neighbours, char *mail_sent, int ready_index);
 void execute_ADVERTISE(neighbour *neighbours, char *mail_sent, int ready_index, expedition_table* table, int* n_neighbours);
-void execute_WITHDRAW(char *mail_sent, expedition_table* table);
+void execute_WITHDRAW(neighbour *neighbours, char *mail_sent, int ready_index, expedition_table *table, int *n_neighbours);
 int close_all_sockets(int n_neighbours, neighbour *neighbours, expedition_table* table);
 int close_socket(int *n_neighbours, neighbour *neighbours, int chosen_index, expedition_table* table);
 int close_listen(neighbour *neighbours, expedition_table* table);

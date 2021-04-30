@@ -167,7 +167,7 @@ int TCP_command_hub(int flag, neighbour *neighbours, char *mail, int *n_neighbou
         break;
 
     case 4:
-        //execute_WITHDRAW();
+        execute_WITHDRAW(neighbours, mail, ready_index, table, n_neighbours);
         break;
     }
 
@@ -461,14 +461,6 @@ void inform_internal_newEXTERN(int *n_neighbours, neighbour *neighbours, expedit
                 i--;
                 continue;
             }
-            //Enviar mensagem de ADVERTISE de todas as entradas da tabela
-            for(int j = 0; j < table->n_id; j++)
-            {
-                if (write_to_someone(table->id[j], "0", neighbours, "ADVERTISE", i, n_neighbours, table) == -1)
-                {
-                    close_socket(n_neighbours, neighbours, i, table);
-                }
-            }
         }
     }
     //se o teu vizinho interno for promovido a externo, mandar também mensagem
@@ -477,15 +469,6 @@ void inform_internal_newEXTERN(int *n_neighbours, neighbour *neighbours, expedit
         if (write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", 1, n_neighbours, table) == -1)
         {
             close_socket(n_neighbours, neighbours, 1, table);
-        }
-        
-        //Enviar mensagem de ADVERTISE de todas as entradas da tabela
-        for(i = 0; i < table->n_id; i++)
-        {
-            if (write_to_someone(table->id[i], "0", neighbours, "ADVERTISE", 1, n_neighbours, table) == -1)
-            {
-                close_socket(n_neighbours, neighbours, 1, table);
-            }
         }
     }
     return;
