@@ -103,7 +103,7 @@ Return:
     0 quando o comando for conhecido e bem executado
     -1 quando o contrário
 */
-int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neighbours, char* netID, expedition_table* table)
+int user_interface(int sockfd, char *argv[], neighbour *neighbours, int *n_neighbours, char *netID, expedition_table *table, object_search *FEDEX)
 {
     char arguments[5][BUF_SIZE];
     int flag, error;
@@ -123,13 +123,13 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
     {
         if (flag == 3)
         {
-            error = join_complicated(arguments[1], arguments[2], sockfd, argv[1], argv[2], neighbours, n_neighbours, table);
+            error = join_complicated(arguments[1], arguments[2], sockfd, argv[1], argv[2], neighbours, n_neighbours, table, FEDEX);
             if (error == 0)
             {
                 strcpy(netID, arguments[1]);
                 return 0;
             }
-                
+
             if (error == -1)
             {
                 printf("Something went wrong. Please try again.\n");
@@ -139,13 +139,13 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
 
         else if (flag == 5 && validar_IPv4(arguments[3]) == 0 && validar_port(arguments[4]) == 0)
         {
-            error = join_simple(arguments[1], arguments[2], arguments[3], arguments[4], sockfd, argv[1], argv[2], neighbours, n_neighbours, table);
+            error = join_simple(arguments[1], arguments[2], arguments[3], arguments[4], sockfd, argv[1], argv[2], neighbours, n_neighbours, table, FEDEX);
             if (error == 0)
             {
                 strcpy(netID, arguments[1]);
                 return 0;
             }
-                
+
             if (error == -1)
             {
                 printf("Something went wrong. Please try again.\n");
@@ -155,12 +155,28 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
     }
     else if (strcmp(arguments[0], "create") == 0 && flag == 2 && state != notreg)
     {
-        //create_node(); //exemplo
+        create_subname(table->id[0], arguments[1], FEDEX);
+        return 0;
+    }
+    else if (strcmp(arguments[0], "clear") == 0 && flag == 2 && state != notreg)
+    {
+        if(strcmp(arguments[1], "all") == 0)
+        {
+            //Função
+            clean_objects(table->id[0], arguments[1], FEDEX, 0);
+            return 0;
+        }
+        //Função
+        clean_objects(table->id[0], arguments[1], FEDEX, 1);
+        return 0;
+        
     }
     else if (strcmp(arguments[0], "get") == 0 && flag == 2 && state != notreg)
     {
+        start_search_for_object(arguments[1], FEDEX, table, neighbours, n_neighbours);
+        return 0;
     }
-    else if (((strcmp(arguments[0], "show") == 0 && flag == 2) || (((strcmp(arguments[0], "st") == 0 || strcmp(arguments[0], "sr") == 0 || strcmp(arguments[0], "sc") == 0) && flag == 1))) && state != notreg)
+    else if (((strcmp(arguments[0], "show") == 0 && flag == 2) || (((strcmp(arguments[0], "st") == 0 || strcmp(arguments[0], "sr") == 0 || strcmp(arguments[0], "sc") == 0 || strcmp(arguments[0], "so") == 0) && flag == 1))) && state != notreg)
     {
 
         if (strcmp(arguments[1], "topology") == 0 || strcmp(arguments[0], "st") == 0)
@@ -177,19 +193,33 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
 
         else if (strcmp(arguments[1], "cache") == 0 || strcmp(arguments[0], "sc") == 0)
         {
+            print_cache(FEDEX);
+            return 0;
+        }
+        else if (strcmp(arguments[1], "objects") == 0 || strcmp(arguments[0], "so") == 0)
+        {
+            print_objects(FEDEX);
+            return 0;
         }
     }
     else if (strcmp(arguments[0], "leave") == 0 && flag == 1 && state != notreg)
     {
         //de-register
-        if(leave_server(netID, sockfd, argv[1], argv[2]) == -1)
+        if (leave_server(netID, sockfd, argv[1], argv[2]) == -1)
         {
             printf("Something went wrong. Please try again.\n");
             return -1;
         }
 
         //fechar todos os fds e addrinfo
-        close_all_sockets(*n_neighbours, neighbours, table);
+        if(*n_neighbours == 0)
+        {
+            close_listen(neighbours, table, FEDEX);
+        }
+        else if(*n_neighbours > 0)
+        {
+            close_all_sockets(*n_neighbours, neighbours, table, FEDEX);
+        }
 
         //atualizar o estado
         *n_neighbours = 0;
@@ -199,17 +229,17 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
     }
     else if (strcmp(arguments[0], "exit") == 0 && flag == 1)
     {
-        if(state == reg || state == lonereg)
+        if (state == reg || state == lonereg)
         {
             //de-register
-            if(leave_server(netID, sockfd, argv[1], argv[2]) == -1)
+            if (leave_server(netID, sockfd, argv[1], argv[2]) == -1)
             {
                 printf("Something went wrong. Please try again.\n");
                 return -1;
             }
 
             //fechar todos os fds e addrinfo
-            close_all_sockets(*n_neighbours, neighbours, table);
+            close_all_sockets(*n_neighbours, neighbours, table, FEDEX);
         }
         //atualizar o estado
         *n_neighbours = 0;
@@ -223,16 +253,16 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
 }
 
 //Ordena um array para fazer uma lista de opções para conectar
-int* random_neighbour(int n_nodes, int* shuffle)
+int *random_neighbour(int n_nodes, int *shuffle)
 {
     int i, temp, randIndex;
 
-    for(i = 0; i < n_nodes; i++) 
+    for (i = 0; i < n_nodes; i++)
     {
         shuffle[i] = i;
     }
 
-    for(i = 0; i < n_nodes; i++) 
+    for (i = 0; i < n_nodes; i++)
     {
         temp = shuffle[i];
         randIndex = rand() % n_nodes;
@@ -253,7 +283,7 @@ Return:
     4 - WITHDRAW
     -1 - erro ou mensagem não existe no protocolo
 */
-int validate_messages(char* mail)
+int validate_messages(char *mail)
 {
     int flag = 0;
     char buffer[BUF_SIZE];
@@ -261,43 +291,99 @@ int validate_messages(char* mail)
 
     sscanf(mail, "%s", buffer);
 
-    if(strcmp(buffer, "NEW") == 0)
+    if (strcmp(buffer, "NEW") == 0)
     {
         flag = sscanf(mail, "%s %s %s\n", arguments[0], arguments[1], arguments[2]);
-        if(flag != 3)
+        if (flag != 3)
         {
             return -1;
         }
-        if(validar_IPv4(arguments[1]) == -1 || validar_port(arguments[2]) == -1)
+        if (validar_IPv4(arguments[1]) == -1 || validar_port(arguments[2]) == -1)
         {
             return -1;
         }
         return 1;
     }
-    if(strcmp(buffer, "EXTERN") == 0)
+    else if (strcmp(buffer, "EXTERN") == 0)
     {
         flag = sscanf(mail, "%s %s %s\n", arguments[0], arguments[1], arguments[2]);
-        if(flag != 3)
+        if (flag != 3)
         {
             return -1;
         }
-        if(validar_IPv4(arguments[1]) == -1 || validar_port(arguments[2]) == -1)
+        if (validar_IPv4(arguments[1]) == -1 || validar_port(arguments[2]) == -1)
         {
             return -1;
         }
         //comando conhecido
         return 2;
     }
-    if(strcmp(buffer, "ADVERTISE") == 0)
+    else if (strcmp(buffer, "ADVERTISE") == 0)
     {
-        flag = sscanf(mail, "%s \n", arguments[0]);
+        flag = sscanf(mail, "%s %s\n", arguments[0], arguments[1]);
+        if (flag != 2)
+        {
+            return -1;
+        }
         return 3;
     }
-    if(strcmp(buffer, "WITHDRAW") == 0)
+    else if (strcmp(buffer, "WITHDRAW") == 0)
     {
-        //comando conhecido
+        flag = sscanf(mail, "%s %s\n", arguments[0], arguments[1]);
+        if (flag != 2)
+        {
+            return -1;
+        }
         return 4;
     }
+    else if (strcmp(buffer, "INTEREST") == 0)
+    {
+        flag = sscanf(mail, "%s %s\n", arguments[0], arguments[1]);
+        if (flag != 2)
+        {
+            return -1;
+        }
+        return 5;
+    }
+    else if (strcmp(buffer, "DATA") == 0)
+    {
+        flag = sscanf(mail, "%s %s\n", arguments[0], arguments[1]);
+        if (flag != 2)
+        {
+            return -1;
+        }
+        return 6;
+    }
+    else if (strcmp(buffer, "NODATA") == 0)
+    {
+        flag = sscanf(mail, "%s %s\n", arguments[0], arguments[1]);
+        if (flag != 2)
+        {
+            return -1;
+        }
+        return 7;
+    }
 
+    return -1;
+}
+
+//Separar ID do subnome
+//Retorna 0 caso encontre ID correspondente na tabela
+//Retorna -1 caso não encontre nada
+int separate_ID_subname(char *ID_subname, char *ID, char *subname, expedition_table *table)
+{
+    char *ptr;
+
+    for (int i = 0; i < table->n_id; i++)
+    {
+        if (strncmp(table->id[i], ID_subname, strlen(table->id[i])) == 0)
+        {
+            strcpy(ID, table->id[i]);
+            ptr = ID_subname;
+            ptr += strlen(ID) + 1; //avançar ponteiro para o início do subname
+            strcpy(subname, ptr);
+            return 0;
+        }
+    }
     return -1;
 }

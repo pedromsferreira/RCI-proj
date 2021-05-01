@@ -14,7 +14,7 @@
 #include "TCP.h"
 #include "UDP.h"
 
-int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, char *nodeTCP, neighbour *neighbours, int *n_neighbours, expedition_table *table)
+int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, char *nodeTCP, neighbour *neighbours, int *n_neighbours, expedition_table *table, object_search *FEDEX)
 {
     //variables
     //comando: REG (espaço) netID (espaço) IP (espaço) TCP
@@ -54,7 +54,7 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
         if (node_externo == -1)
         {
             //fechar listenfd
-            close_listen(neighbours, table);
+            close_listen(neighbours, table, FEDEX);
             return -1;
         }
         current = 0;
@@ -65,10 +65,10 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
         *n_neighbours += 1;
 
         //tentar comunicar
-        if (exchange_contacts(neighbours, node_externo, n_neighbours, 1, table) == -1)
+        if (exchange_contacts(neighbours, node_externo, n_neighbours, 1, table, NULL) == -1)
         {
             //fechar listenfd
-            close_listen(neighbours, table);
+            close_listen(neighbours, table, FEDEX);
             return -1;
         }
     }
@@ -88,7 +88,7 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
             if (node_externo == -1 && i == n_nodes - 1)
             {
                 //fechar listenfd
-                close_listen(neighbours, table);
+                close_listen(neighbours, table, FEDEX);
                 free(shuffle);
                 return -1;
             }
@@ -99,12 +99,12 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
                 neighbours[1].sockfd = node_externo;
                 *n_neighbours += 1;
 
-                flag = exchange_contacts(neighbours, node_externo, n_neighbours, 1, table);
+                flag = exchange_contacts(neighbours, node_externo, n_neighbours, 1, table, NULL);
 
                 if (flag == -1 && i == n_nodes - 1)
                 {
                     //fechar listenfd
-                    close_listen(neighbours, table);
+                    close_listen(neighbours, table, FEDEX);
                     free(shuffle);
                     return -1;
                 }
@@ -133,26 +133,26 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
     if (sendto(sock_server, bufferREG, strlen(bufferREG) + 1, 0, server_info->ai_addr, server_info->ai_addrlen) == -1)
     {
         printf("Error: %s\n", strerror(errno));
-        close_listen(neighbours, table);
+        close_listen(neighbours, table, FEDEX);
         return -1;
     }
 
     if (wait_for_answer(sock_server, 2) == -1)
     {
-        close_listen(neighbours, table);
+        close_listen(neighbours, table, FEDEX);
         return -1;
     }
 
     if (recvfrom(sock_server, confirm_message, sizeof(confirm_message) + 1, 0, &addr, &addrlen) == -1)
     {
         printf("Error: %s\n", strerror(errno));
-        close_listen(neighbours, table);
+        close_listen(neighbours, table, FEDEX);
         return -1;
     }
     if (strcmp(confirm_message, "OKREG") != 0)
     {
         printf("%s\n", confirm_message);
-        close_listen(neighbours, table);
+        close_listen(neighbours, table, FEDEX);
         return -1;
     }
 
@@ -171,8 +171,8 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
     }
     return 0;
 }
-//join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, char *nodeTCP, neighbour* neighbours, int* n_neighbours/*, expedition_table* table*/)
-int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock_server, char *nodeIP, char *nodeTCP, neighbour *neighbours, int *n_neighbours, expedition_table *table)
+
+int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock_server, char *nodeIP, char *nodeTCP, neighbour *neighbours, int *n_neighbours, expedition_table *table, object_search *FEDEX)
 {
     int max_buffer = 4 + strlen(netID) + 1 + strlen(nodeIP) + 1 + 5 + 1;
     int node_externo = 0;
@@ -197,7 +197,7 @@ int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock
     if (node_externo == -1)
     {
         //fechar listenfd
-        close_listen(neighbours, table);
+        close_listen(neighbours, table, FEDEX);
         return -1;
     }
 
@@ -208,10 +208,10 @@ int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock
     *n_neighbours += 1;
 
     //tentar comunicar
-    if (exchange_contacts(neighbours, node_externo, n_neighbours, 1, table) == -1)
+    if (exchange_contacts(neighbours, node_externo, n_neighbours, 1, table, NULL) == -1)
     {
         //fechar listenfd
-        close_listen(neighbours, table);
+        close_listen(neighbours, table, FEDEX);
         return -1;
     }
 
@@ -252,6 +252,117 @@ int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock
     return 0;
 }
 
+void create_subname(char *ID, char *subname, object_search *FEDEX)
+{
+    char buffer[BUF_SIZE];
+    int i;
+
+    //impor formato do nome do objeto
+    sprintf(buffer, "%s.%s", ID, subname);
+
+    //copiar objeto para a estrutura e incrementar número de objetos
+    if (FEDEX->n_objects < MAX_OBJECTS)
+    {
+        for (i = 0; i < MAX_OBJECTS; i++)
+        {
+            if (strcmp(FEDEX->objects[i], buffer) == 0)
+            {
+                printf("\nWe already had one of those, but thanks for reminding us.\n");
+                return;
+            }
+        }
+        strcpy(FEDEX->objects[FEDEX->n_objects], buffer);
+        FEDEX->n_objects += 1;
+    }
+    else if (FEDEX->n_objects == MAX_OBJECTS)
+    {
+        printf("\nExceeded capacity, removing the oldest object in record...");
+        for (i = 0; i < MAX_OBJECTS - 1; i++)
+        {
+            strcpy(FEDEX->objects[i], FEDEX->objects[i + 1]);
+        }
+        strcpy(FEDEX->objects[MAX_OBJECTS - 1], buffer);
+        printf("\nDone.\n");
+    }
+    return;
+}
+/*
+//Option value
+    0 - clear all
+    1 - clear only subname
+*/
+void clean_objects(char *ID, char *subname, object_search *FEDEX, int option)
+{
+    char buffer[BUF_SIZE];
+    int i;
+
+    //clear all
+    if (option == 0)
+    {
+        for (i = 0; i < MAX_OBJECTS; i++)
+        {
+            memset(FEDEX->objects[i], '\0', BUF_SIZE);
+        }
+        FEDEX->n_objects = 0;
+    }
+    //clear subname
+    else if (option == 1)
+    {
+        //impor formato do nome do objeto
+        sprintf(buffer, "%s.%s", ID, subname);
+
+        for (i = 0; i < MAX_OBJECTS; i++)
+        {
+            if (strcmp(buffer, FEDEX->objects[i]) == 0)
+            {
+                memset(FEDEX->objects[i], '\0', BUF_SIZE);
+                FEDEX->n_objects -= 1;
+                return;
+            }
+        }
+    }
+    return;
+}
+
+void start_search_for_object(char *name, object_search *FEDEX, expedition_table *table, neighbour *neighbours, int *n_neighbours)
+{
+    char ID[BUF_SIZE], subname[BUF_SIZE];
+    int destination_table, destination;
+
+    if (strcmp(FEDEX->cache_objects[0], name) == 0 || strcmp(FEDEX->cache_objects[1], name) == 0)
+    {
+        /*Mandar DATA*/
+        printf("\nAlready in cache, but OK chief.\n");
+        return;
+    }
+
+    //verificar se existe um id na rede como o especificado
+    if (separate_ID_subname(name, ID, subname, table) == -1)
+    {
+        printf("\nID unknown in the network. Be sure the object you are searching is in this format:\n");
+        printf("\n      <id>.<subname>      \n");
+        return;
+    }
+
+    //descobrir qual o socket para onde mandar pela tabela de expedição
+    destination_table = find_ID_index_in_expedition_table(ID, table);
+    destination = find_ID_index_in_struct_neighbours(neighbours, table, n_neighbours, destination_table);
+
+    //enviar mensagem de INTEREST para o socket correspondente na tabela de expedição
+    if (write_to_someone(name, "0", neighbours, "INTEREST", destination, n_neighbours, table, FEDEX) == -1)
+    {
+        printf("\nIntermediate node disconnected while sending message. Please try again.\n");
+        return;
+    }
+
+    //atualizar em FEDEX que estamos neste momento à espera de um objeto
+    strcpy(FEDEX->ID_return[FEDEX->n_return], table->id[0]);
+    strcpy(FEDEX->object_return[FEDEX->n_return], name);
+    FEDEX->n_return++;
+
+    return;
+}
+
 void print_topology(neighbour *neighbours)
 {
     printf("Extern ( ͡° ͜ʖ ͡°) :\n IP --> %s\n TCP --> %s\n", neighbours[1].node.IP, neighbours[1].node.TCP);
@@ -263,14 +374,31 @@ void print_routing(expedition_table table)
 {
     for (int i = 0; i < table.n_id; i++)
     {
+        if (i == 0)
+        {
+            printf("( ͡° ͜ʖ ͡°) : ID --> %s // socket --> -\n", table.id[i]);
+            continue;
+        }
+
         printf("( ͡° ͜ʖ ͡°) : ID --> %s // socket --> %d\n", table.id[i], table.sockfd[i]);
     }
     return;
 }
 
-void print_cache()
+void print_cache(object_search *FEDEX)
 {
+    printf("\n( ͡° ͜ʖ ͡°) : Linha 1 --> %s\n", FEDEX->cache_objects[0]);
+    printf("( ͡° ͜ʖ ͡°) : Linha 2 --> %s\n", FEDEX->cache_objects[1]);
+    return;
+}
 
+void print_objects(object_search *FEDEX)
+{
+    for (int i = 0; i < FEDEX->n_objects; i++)
+    {
+        printf("\n( ͡° ͜ʖ ͡°) : Object %d --> %s", i + 1, FEDEX->objects[i]);
+    }
+    printf("\n");
     return;
 }
 
@@ -323,11 +451,11 @@ void execute_NEW(neighbour *neighbours, char *mail_sent, int *n_neighbours, int 
         strcpy(neighbours[1].node.IP, arguments[1]);
         strcpy(neighbours[1].node.TCP, arguments[2]);
         //após receber mensagem de NEW, enviar EXTERN e ADVERTISE
-        write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", ready_index, n_neighbours, table);
+        write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", ready_index, n_neighbours, table, NULL);
         for (i = 0; i < table->n_id; i++)
         {
             //Enviar mensagem de ADVERTISE de todas as entradas da tabela
-            if (write_to_someone(table->id[i], "0", neighbours, "ADVERTISE", ready_index, n_neighbours, table) == -1)
+            if (write_to_someone(table->id[i], "0", neighbours, "ADVERTISE", ready_index, n_neighbours, table, NULL) == -1)
             {
                 close_socket(n_neighbours, neighbours, ready_index, table);
             }
@@ -340,11 +468,11 @@ void execute_NEW(neighbour *neighbours, char *mail_sent, int *n_neighbours, int 
         strcpy(neighbours[*n_neighbours + 1].node.IP, arguments[1]);
         strcpy(neighbours[*n_neighbours + 1].node.TCP, arguments[2]);
         //após receber mensagem de NEW, enviar EXTERN e ADVERTISE
-        write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", ready_index, n_neighbours, table);
+        write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", ready_index, n_neighbours, table, NULL);
         for (i = 0; i < table->n_id; i++)
         {
             //Enviar mensagem de ADVERTISE de todas as entradas da tabela
-            if (write_to_someone(table->id[i], "0", neighbours, "ADVERTISE", ready_index, n_neighbours, table) == -1)
+            if (write_to_someone(table->id[i], "0", neighbours, "ADVERTISE", ready_index, n_neighbours, table, NULL) == -1)
             {
                 close_socket(n_neighbours, neighbours, ready_index, table);
             }
@@ -386,7 +514,7 @@ void execute_ADVERTISE(neighbour *neighbours, char *mail_sent, int ready_index, 
     flag = insert_ID_in_table(table, neighbours[ready_index].sockfd, arguments[1]);
 
     //Do not message neighbours if id already known
-    if(flag == -1)
+    if (flag == -1)
         return;
 
     if (*n_neighbours > 0)
@@ -397,7 +525,7 @@ void execute_ADVERTISE(neighbour *neighbours, char *mail_sent, int ready_index, 
             if (i == 2 || i == ready_index)
                 continue;
 
-            if (write_to_someone(table->id[table->n_id - 1], "0", neighbours, "ADVERTISE", i, n_neighbours, table) == -1)
+            if (write_to_someone(table->id[table->n_id - 1], "0", neighbours, "ADVERTISE", i, n_neighbours, table, NULL) == -1)
             {
                 close_socket(n_neighbours, neighbours, i, table);
                 i--;
@@ -425,7 +553,7 @@ void execute_WITHDRAW(neighbour *neighbours, char *mail_sent, int ready_index, e
             if (i == 2 || i == ready_index)
                 continue;
 
-            if (write_to_someone(arguments[1], "0", neighbours, "WITHDRAW", i, n_neighbours, table) == -1)
+            if (write_to_someone(arguments[1], "0", neighbours, "WITHDRAW", i, n_neighbours, table, NULL) == -1)
             {
                 close_socket(n_neighbours, neighbours, i, table);
                 i--;
@@ -435,10 +563,198 @@ void execute_WITHDRAW(neighbour *neighbours, char *mail_sent, int ready_index, e
 
     return;
 }
+//DAR MEMSET DE MERDASSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+void execute_INTEREST(neighbour *neighbours, char *mail_sent, int ready_index, expedition_table *table, int *n_neighbours, object_search *FEDEX)
+{
+    char arguments[2][BUF_SIZE];
+    char subname[BUF_SIZE];
+    char ID[BUF_SIZE];
+    int flag, i, j;
 
-int close_all_sockets(int n_neighbours, neighbour *neighbours, expedition_table *table)
+    //Ler mensagem recebida
+    sscanf(mail_sent, "%s %s\n", arguments[0], arguments[1]);
+
+    //Separar ID do subnome
+    flag = separate_ID_subname(arguments[1], ID, subname, table);
+
+    //Caso não tenha encontrado um ID válido, ignorar mensagem
+    if (flag == -1)
+    {
+        return;
+    }
+
+    //Verifica a cache
+    if (strcmp(FEDEX->cache_objects[0], arguments[1]) == 0 || strcmp(FEDEX->cache_objects[1], arguments[1]) == 0)
+    {
+        /*Mandar DATA*/
+        write_to_someone(arguments[1], "0", neighbours, "DATA", ready_index, n_neighbours, table, FEDEX);
+        return;
+    }
+
+    //Caso tenha chegado ao nó de destino
+    if (strcmp(table->id[0], ID) == 0)
+    {
+        //Vai procurar nos objetos do nó
+        for (i = 0; i < FEDEX->n_objects; i++)
+        {
+            //Se o objeto for encontrado
+            if (strcmp(FEDEX->objects[i], arguments[1]) == 0)
+            {
+                /*Encontrou objeto e vai mandar DATA*/
+                write_to_someone(arguments[1], "0", neighbours, "DATA", ready_index, n_neighbours, table, FEDEX);
+
+                //Guardar na cache
+                store_in_cache(FEDEX, arguments[1]);
+                return;
+            }
+        }
+        /*Não encontrou objeto e vai mandar NODATA*/
+        write_to_someone(arguments[1], "0", neighbours, "NODATA", ready_index, n_neighbours, table, FEDEX);
+        return;
+    }
+
+    //Caso não seja o nó de destino
+    //Envio de mensagens de INTEREST em direção do nó que tem informação
+
+    //Analisar que socket tem de utilizar para mandar mensagem de Interest
+    for (i = 0; i < table->n_id; i++)
+    {
+        if (strcmp(table->id[i], ID) == 0)
+        {
+            //Procurar o índice de neighbours
+            j = find_ID_index_in_struct_neighbours(neighbours, table, n_neighbours, i);
+
+            write_to_someone(arguments[1], "0", neighbours, "INTEREST", j, n_neighbours, table, FEDEX);
+        }
+    }
+
+    
+    for (i = 0; i < table->n_id; i++)
+    {
+        if(table->sockfd[i] == neighbours[ready_index].sockfd)
+        {
+            break;
+        }
+    }
+    //Guardar ID de retorno e objeto correspondente
+    strcpy(FEDEX->ID_return[FEDEX->n_return], table->id[i]);
+    strcpy(FEDEX->object_return[FEDEX->n_return], arguments[1]);
+    FEDEX->n_return++;
+
+    return;
+}
+
+void execute_DATA(neighbour *neighbours, char *mail_sent, int ready_index, expedition_table *table, int *n_neighbours, object_search *FEDEX)
+{
+    char arguments[2][BUF_SIZE];
+    char subname[BUF_SIZE];
+    char ID[BUF_SIZE];
+    int i, j, k;
+
+    //Ler mensagem recebida
+    sscanf(mail_sent, "%s %s\n", arguments[0], arguments[1]);
+
+    //Separar ID do subnome
+    separate_ID_subname(arguments[1], ID, subname, table);
+
+    //Guardar na cache
+    store_in_cache(FEDEX, arguments[1]);
+
+    //Se encontrar o nó que fez o request
+    for (i = 0; i < FEDEX->n_return; i++)
+    {
+        //Se corresponder ao nó de origem
+        if (strcmp(table->id[0], FEDEX->ID_return[i]) == 0 && strcmp(arguments[1], FEDEX->object_return[i]) == 0)
+        {
+            printf("Tem aqui a sua entrega de dildos, %s", subname);
+            update_line_return_FEDEX(FEDEX, i);
+
+            return;
+        }
+    }
+
+    /*Envio de mensagens DATA em direção do nó de origem*/
+    //Analisar que socket tem de utilizar para mandar mensagem de Interest
+
+    //Procura pelo índice do sockfd na expedition table
+    for (i = 0; i < table->n_id; i++)
+    {
+        for (j = 0; j < FEDEX->n_return; j++)
+        {
+            //Determinar o índice do sockfd na expedition table
+            if (strcmp(table->id[i], FEDEX->ID_return[j]) == 0 && strcmp(arguments[1], FEDEX->object_return[j]) == 0)
+            {
+                k = find_ID_index_in_struct_neighbours(neighbours, table, n_neighbours, i);
+
+                /*Mandar DATA*/
+                write_to_someone(arguments[1], "0", neighbours, "DATA", k, n_neighbours, table, FEDEX);
+
+                //Limpar linha utilizada
+                update_line_return_FEDEX(FEDEX, j);
+
+                return;
+            }
+        }
+    }
+}
+
+void execute_NODATA(neighbour *neighbours, char *mail_sent, int ready_index, expedition_table *table, int *n_neighbours, object_search *FEDEX)
+{
+    char arguments[2][BUF_SIZE];
+    char subname[BUF_SIZE];
+    char ID[BUF_SIZE];
+    int i, j, k;
+
+    //Ler mensagem recebida
+    sscanf(mail_sent, "%s %s\n", arguments[0], arguments[1]);
+
+    //Separar ID do subnome
+    separate_ID_subname(arguments[1], ID, subname, table);
+
+    //Se encontrar o nó que fez o request
+    for (i = 0; i < FEDEX->n_return; i++)
+    {
+        //Se corresponder ao nó de origem
+        if (strcmp(table->id[0], FEDEX->ID_return[i]) == 0 && strcmp(arguments[1], FEDEX->object_return[i]) == 0)
+        {
+            printf("Não tem aqui a sua entrega de dildos, perderam-se no caminho");
+            update_line_return_FEDEX(FEDEX, i);
+
+            return;
+        }
+    }
+
+    /*Envio de mensagens NODATA em direção do nó de origem*/
+    //Procura pelo índice do sockfd na expedition table
+    for (i = 0; i < table->n_id; i++)
+    {
+        for (j = 0; j < FEDEX->n_return; j++)
+        {
+            //Determinar o índice do sockfd na expedition table
+            if (strcmp(table->id[i], FEDEX->ID_return[j]) == 0 && strcmp(arguments[1], FEDEX->object_return[j]) == 0)
+            {
+                k = find_ID_index_in_struct_neighbours(neighbours, table, n_neighbours, i);
+
+                /*Mandar NODATA*/
+                write_to_someone(arguments[1], "0", neighbours, "NODATA", k, n_neighbours, table, FEDEX);
+
+                //Limpar linha utilizada
+                update_line_return_FEDEX(FEDEX, j);
+
+                return;
+            }
+        }
+    }
+}
+
+int close_all_sockets(int n_neighbours, neighbour *neighbours, expedition_table *table, object_search *FEDEX)
 {
     int i;
+
+    //Reset à tabela de expedição
+    reset_table(table);
+    reset_objects(FEDEX);
+
     for (i = 0; i <= n_neighbours + 1; i++)
     {
         //o 2 é o vizinho de recuperação
@@ -453,9 +769,6 @@ int close_all_sockets(int n_neighbours, neighbour *neighbours, expedition_table 
             neighbours[i].sockfd = -1;
         }
     }
-    //Reset à tabela de expedição
-    reset_table(table);
-
     freeaddrinfo(neighbours[0].node_info);
     return 0;
 }
@@ -475,11 +788,10 @@ int close_socket(int *n_neighbours, neighbour *neighbours, int chosen_index, exp
             //Percorrer a tabela e identificar as linhas com sockfd iguais ao que se vai remover
             for (int j = 1; j < table->n_id; j++)
             {
-                if(table->sockfd[j] == neighbours[chosen_index].sockfd)
+                if (table->sockfd[j] == neighbours[chosen_index].sockfd)
                 {
-                    if (write_to_someone(table->id[j], "0", neighbours, "WITHDRAW", i, n_neighbours, table) == -1)
+                    if (write_to_someone(table->id[j], "0", neighbours, "WITHDRAW", i, n_neighbours, table, NULL) == -1)
                     {
-                        close_socket(n_neighbours, neighbours, i, table);
                         i--;
                         break;
                     }
@@ -492,10 +804,14 @@ int close_socket(int *n_neighbours, neighbour *neighbours, int chosen_index, exp
     remove_socket_from_table(table, neighbours[chosen_index].sockfd);
 
     //Fecho do socket
-    if (close(neighbours[chosen_index].sockfd) == -1)
+    if (neighbours[chosen_index].sockfd != -1 && neighbours[chosen_index].sockfd != 0)
     {
-        printf("Error: %s\n", strerror(errno));
+        if (close(neighbours[chosen_index].sockfd) == -1)
+        {
+            printf("Error: %s\n", strerror(errno));
+        }
     }
+    //acrescentar freeaddrinfo aqui????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 
     neighbours[chosen_index].sockfd = -1;
     //Se o nó retirado for um interno, move a tabela 1 fila para cima
@@ -518,16 +834,22 @@ int close_socket(int *n_neighbours, neighbour *neighbours, int chosen_index, exp
     return 0;
 }
 
-int close_listen(neighbour *neighbours, expedition_table *table)
+int close_listen(neighbour *neighbours, expedition_table *table, object_search *FEDEX)
 {
-    if (close(neighbours[0].sockfd) == -1)
+
+    if (neighbours[0].sockfd != -1 && neighbours[0].sockfd != 0)
     {
-        printf("Error: %s\n", strerror(errno));
-        return -1;
+        if (close(neighbours[0].sockfd) == -1)
+        {
+            printf("Error: %s\n", strerror(errno));
+        }
     }
 
-    //Limpar o
     remove_socket_from_table(table, neighbours[0].sockfd);
+
+    reset_objects(FEDEX);
+
+    neighbours[0].sockfd = -1;
 
     freeaddrinfo(neighbours[0].node_info);
     return 0;
@@ -542,5 +864,60 @@ void reset_table(expedition_table *table)
         table->sockfd[i] = -1;
     }
     table->n_id = 0;
+    return;
+}
+
+void reset_objects(object_search *FEDEX)
+{
+    for (int i = 0; i < MAX_OBJECTS; i++)
+    {
+        memset(FEDEX->objects[i], '\0', BUF_SIZE);
+        memset(FEDEX->ID_return[i], '\0', BUF_SIZE);
+        memset(FEDEX->object_return[i], '\0', BUF_SIZE);
+    }
+    FEDEX->n_objects = 0;
+    FEDEX->n_return = 0;
+    return;
+}
+
+//Limpar a linha que tinha guardado o objeto e o ID de retorno
+//Puxar a tabela uma linha para cima
+void update_line_return_FEDEX(object_search *FEDEX, int index)
+{
+    memset(FEDEX->ID_return[index], '\0', BUF_SIZE);
+    memset(FEDEX->object_return[index], '\0', BUF_SIZE);
+
+    for (int i = index; i < FEDEX->n_return - 1; i++)
+    {
+        strcpy(FEDEX->ID_return[i], FEDEX->ID_return[i + 1]);
+        strcpy(FEDEX->object_return[i], FEDEX->object_return[i + 1]);
+    }
+    FEDEX->n_return--;
+    return;
+}
+
+//Guardar na cache
+void store_in_cache(object_search *FEDEX, char *ID_subname)
+{
+    int flag = 0, i;
+
+    for (i = 1; i >= 0; i--)
+    {
+        //Se a fila da cache estiver vazia
+        if (FEDEX->cache_objects[i] == 0)
+        {
+            //Copia id.subname
+            strcpy(FEDEX->cache_objects[i], ID_subname);
+            flag = 1;
+            break;
+        }
+    }
+
+    if (flag == 0)
+    {
+        //Se a cache estiver cheia, puxar a informação uma linha para baixo e introduzir nova informação na primeira linha
+        strcpy(FEDEX->cache_objects[1], FEDEX->cache_objects[0]);
+        strcpy(FEDEX->cache_objects[0], ID_subname);
+    }
     return;
 }

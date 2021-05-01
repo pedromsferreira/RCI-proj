@@ -34,10 +34,17 @@ void state_machine(int argc, char **argv)
     neighbour neighbours[MAX_NEIGHBOURS];
 
     //Tabela de expedição
-    //Posições definidas:
+    //Posições definidas: (ID)
     //  0 - próprio nó
     //  1+ - outros membros da rede
     expedition_table table;
+
+    //Tabela de objetos
+    //Posições definidas: (Cache)
+    //  0 - posição mais recente
+    //  1 - posição menos recente
+
+    object_search FEDEX;
 
     //inicializar variáveis
     //Tabela de nós
@@ -49,6 +56,9 @@ void state_machine(int argc, char **argv)
 
     //Tabela de expedição
     reset_table(&table);
+
+    //Tabela de objetos
+    reset_objects(&FEDEX);
 
     //Establecer neighbour 0 como o programa ndn
     strcpy(neighbours[0].node.IP, argv[1]);
@@ -99,8 +109,7 @@ void state_machine(int argc, char **argv)
         }
 
         printf("\nndn> ");
-        if (state != leaving)
-            fflush(stdout);
+        fflush(stdout);
 
         //await for fds ready to be read
         fd_ready = select(maxfd + 1, &read_fd, (fd_set *)NULL, (fd_set *)NULL, (struct timeval *)NULL);
@@ -117,13 +126,13 @@ void state_machine(int argc, char **argv)
             {
             //for when program is not registered in the network
             case notreg:
-                //if stdin (fd = 0) interreptud select
+                //if stdin (fd = 0) interrupted select
                 if (FD_ISSET(0, &read_fd))
                 {
                     FD_CLR(0, &read_fd);
 
                     //tratar do comando introduzido na consola
-                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID, &table);
+                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID, &table, &FEDEX);
                     if (flag == 1)
                     {
                         printf("Closing program...\n");
@@ -137,13 +146,13 @@ void state_machine(int argc, char **argv)
                 }
                 break;
             case lonereg:
-                //if stdin (fd = 0) interreptud select
+                //if stdin (fd = 0) interrupted select
                 if (FD_ISSET(0, &read_fd))
                 {
                     FD_CLR(0, &read_fd);
 
                     //tratar do comando introduzido na consola
-                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID, &table);
+                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID, &table, &FEDEX);
                     if (flag == 1)
                     {
                         printf("Closing program...\n");
@@ -174,19 +183,19 @@ void state_machine(int argc, char **argv)
                 {
                     FD_CLR(neighbours[1].sockfd, &read_fd);
                     //ler buffer
-                    read_from_someone(neighbours, 1, &n_neighbours, &table);
+                    read_from_someone(neighbours, 1, &n_neighbours, &table, &FEDEX);
                     //if everything OK -- state is now reg
                     state = reg;
                 }
                 break;
             case reg:
-                //if stdin (fd = 0) interreptud select
+                //if stdin (fd = 0) interrupted select
                 if (FD_ISSET(0, &read_fd))
                 {
                     FD_CLR(0, &read_fd);
 
                     //tratar do comando introduzido na consola
-                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID, &table);
+                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID, &table, &FEDEX);
                     if (flag == 1)
                     {
                         printf("Closing program...\n");
@@ -217,7 +226,7 @@ void state_machine(int argc, char **argv)
                     if (FD_ISSET(neighbours[i].sockfd, &read_fd))
                     {
                         FD_CLR(neighbours[i].sockfd, &read_fd);
-                        read_from_someone(neighbours, i, &n_neighbours, &table);
+                        read_from_someone(neighbours, i, &n_neighbours, &table, &FEDEX);
                     }
                 }
                 break;
@@ -228,7 +237,7 @@ void state_machine(int argc, char **argv)
                     FD_CLR(0, &read_fd);
 
                     //tratar do comando introduzido na consola
-                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID, &table);
+                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID, &table, &FEDEX);
                     if (flag == 1)
                     {
                         printf("Closing program...\n");
