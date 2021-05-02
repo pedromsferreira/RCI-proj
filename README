@@ -1,1 +1,27 @@
-if u read this u are gay
+Valid commands for this program:
+
+    Original Commands: 
+
+        - join <net> <id>
+
+        - join <net> <id> <bootIP> <bootTCP>
+
+        - create <subname>
+
+        - get <name>
+
+        - show topology (OR) st
+
+        - show routing (OR) sr
+
+        - show cache (OR) sc
+
+        - leave
+        
+        - exit
+    
+    Extra Commands:
+
+        - clear all
+        
+        - clear <subname>

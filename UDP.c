@@ -11,11 +11,23 @@
 #include "network.h"
 #include "UDP.h"
 
-//default IP e UDP port
+//default IP and UDP port for nodes server
 char defaultIP[16] = "193.136.138.142";
 char defaultUDP[6] = "59000";
 
-//Initialize UDP server connection
+/******************************************************************************
+*   Initialize UDP server connection
+*
+* Arguments:
+*   argc - number of arguments from program start
+*   IP - nodes server IP
+*   UDP - nodes server port number
+*
+* Returns: (int)
+*   sockfd - nodes server socket
+*   -1 - something wrong  
+*
+******************************************************************************/
 int UDP_socket(int argc, char *IP, char *UDP)
 {
     struct addrinfo hints;
@@ -26,6 +38,7 @@ int UDP_socket(int argc, char *IP, char *UDP)
     if (sockfd == -1)
     {
         printf("Error: %s\n", strerror(errno));
+        printf("\nNodes server isn't responding, try starting program again.\n");
         exit(1);
     }
 
@@ -46,12 +59,19 @@ int UDP_socket(int argc, char *IP, char *UDP)
     return sockfd;
 }
 
-/*
-Pede a lista de nós do servidor de nós através do socket UDP
-Return
-    0 = good
-    -1 = bad
-*/
+
+/******************************************************************************
+*   Asks for nodes list from nodes server
+*
+* Arguments:
+*   netID - network name
+*   n_nodes - number of nodes already in network (should be 0 at start of function)
+*
+* Returns: (int)
+*   0 - looks good
+*  -1 - something wrong  
+*
+******************************************************************************/
 int ask_list(char *netID, int sockfd, nodes* nodeslist, int* n_nodes)
 {
     int i = 0;
@@ -59,8 +79,8 @@ int ask_list(char *netID, int sockfd, nodes* nodeslist, int* n_nodes)
     char list[65536];
     char *token;
 
-    struct sockaddr addr;
-    socklen_t addrlen;
+    /*struct sockaddr addr;
+    socklen_t addrlen;*/
 
     strcat(buffer, netID); //buffer = NODES NETID
 
@@ -73,7 +93,8 @@ int ask_list(char *netID, int sockfd, nodes* nodeslist, int* n_nodes)
     if(wait_for_answer(sockfd, 2) == -1)
         return -1;
 
-    if (recvfrom(sockfd, list, sizeof(list) + 1, 0, &addr, &addrlen) == -1)
+    //addrlen = sizeof(addr);
+    if (recvfrom(sockfd, list, sizeof(list) + 1, 0, NULL, NULL) == -1)
     {
         printf("Error: %s\n", strerror(errno));
         return -1;
@@ -91,11 +112,5 @@ int ask_list(char *netID, int sockfd, nodes* nodeslist, int* n_nodes)
     //Guardar número total de nós
     *n_nodes = i;
     
-    //print temporário do que a lista deu return
-    for (int j = 0; j < i; j++)
-    {
-        printf("IP --> %s\n", nodeslist[j].IP);
-        printf("TCP --> %s\n", nodeslist[j].TCP);
-    }
     return 0;
 }

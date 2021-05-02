@@ -29,7 +29,5 @@ int main(int argc, char* argv[]){
 
     //entrar no select
     state_machine(argc, argv);
-
-
     return 0;
 }

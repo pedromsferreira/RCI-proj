@@ -12,7 +12,9 @@
 #include "commands.h"
 #include "validation.h"
 
-//Instruções para dar input corretamente após erro no terminal
+/******************************************************************************
+* Instructions for the user
+******************************************************************************/
 void instructions()
 {
     printf("To start this program, your command must be formatted like this:\n\n");
@@ -20,12 +22,13 @@ void instructions()
     return;
 }
 
-/*
-Validar IPv4 introduzido
-Return:
-    0 quando o IP for válido
-    -1 quando o contrário
-*/
+/******************************************************************************
+* Validate IPv4 introduced
+*
+* Returns: (int)
+*    0 - when IP is valid
+*    -1 - when IP is invalid
+******************************************************************************/
 int validar_IPv4(char *IPv4)
 {
     int flag = 0;
@@ -43,12 +46,13 @@ int validar_IPv4(char *IPv4)
     return 0;
 }
 
-/*
-Validar port number introduzido
-Return:
-    0 quando o port number for válido
-    -1 quando o contrário
-*/
+/******************************************************************************
+* Validate inserted port number
+*
+* Returns: (int)
+*    0 - if port number is valid
+*    1 - if port number is invalid
+******************************************************************************/
 int validar_port(char *port)
 {
     int port_number = atoi(port);
@@ -61,7 +65,9 @@ int validar_port(char *port)
     return 0;
 }
 
-//Validação do comando que inicia o programa
+/******************************************************************************
+* Validate command that starts program
+******************************************************************************/
 void validate_start(int argc, char *argv[])
 {
     int flag = 0;
@@ -96,14 +102,15 @@ void validate_start(int argc, char *argv[])
     return;
 }
 
-/*
-Validar comando inserido durante a sessão no stdin
-Return:
-    1 quando o programa for encerrar
-    0 quando o comando for conhecido e bem executado
-    -1 quando o contrário
-*/
-int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neighbours, char* netID/*, expedition_table* table*/)
+/******************************************************************************
+* Validate command written in stdin during program
+*
+* Returns: (int)
+*    1 - Program closing
+*    0 - Command known e well executed
+*    -1 - ERROR
+******************************************************************************/
+int user_interface(int sockfd, char *argv[], neighbour *neighbours, int *n_neighbours, char *netID, expedition_table *table, object_search *FEDEX)
 {
     char arguments[5][BUF_SIZE];
     int flag, error;
@@ -123,13 +130,13 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
     {
         if (flag == 3)
         {
-            error = join_complicated(arguments[1], arguments[2], sockfd, argv[1], argv[2], neighbours, n_neighbours/*, table*/);
+            error = join_complicated(arguments[1], arguments[2], sockfd, argv[1], argv[2], neighbours, n_neighbours, table, FEDEX);
             if (error == 0)
             {
                 strcpy(netID, arguments[1]);
                 return 0;
             }
-                
+
             if (error == -1)
             {
                 printf("Something went wrong. Please try again.\n");
@@ -139,13 +146,13 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
 
         else if (flag == 5 && validar_IPv4(arguments[3]) == 0 && validar_port(arguments[4]) == 0)
         {
-            error = join_simple(arguments[1], arguments[2], arguments[3], arguments[4], sockfd, argv[1], argv[2], neighbours, n_neighbours/*, expedition_table* table*/);
+            error = join_simple(arguments[1], arguments[2], arguments[3], arguments[4], sockfd, argv[1], argv[2], neighbours, n_neighbours, table, FEDEX);
             if (error == 0)
             {
                 strcpy(netID, arguments[1]);
                 return 0;
             }
-                
+
             if (error == -1)
             {
                 printf("Something went wrong. Please try again.\n");
@@ -155,39 +162,54 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
     }
     else if (strcmp(arguments[0], "create") == 0 && flag == 2 && state != notreg)
     {
-        //create_node(); //exemplo
+        create_subname(table->id[0], arguments[1], FEDEX);
+        return 0;
+    }
+    else if (strcmp(arguments[0], "clear") == 0 && flag == 2 && state != notreg)
+    {
+        if (strcmp(arguments[1], "all") == 0)
+        {
+            clean_objects(table->id[0], arguments[1], FEDEX, 0);
+            return 0;
+        }
+        clean_objects(table->id[0], arguments[1], FEDEX, 1);
+        return 0;
     }
     else if (strcmp(arguments[0], "get") == 0 && flag == 2 && state != notreg)
     {
+        start_search_for_object(arguments[1], FEDEX, table, neighbours, n_neighbours);
+        return 0;
     }
-    else if (((strcmp(arguments[0], "show") == 0 && flag == 2) || (((strcmp(arguments[0], "st") == 0 || strcmp(arguments[0], "sr") == 0 || strcmp(arguments[0], "sc") == 0) && flag == 1))) && state != notreg)
+    else if (((strcmp(arguments[0], "show") == 0 && flag == 2) || (((strcmp(arguments[0], "st") == 0 || strcmp(arguments[0], "sr") == 0 || strcmp(arguments[0], "sc") == 0 || strcmp(arguments[0], "so") == 0) && flag == 1))) && state != notreg)
     {
 
-        if (strcmp(arguments[1], "topology") == 0 || strcmp(arguments[0], "st") == 0)
+        if ((flag == 2  && strcmp(arguments[1], "topology") == 0 ) || (flag == 1 && strcmp(arguments[0], "st") == 0))
         {
             print_topology(neighbours);
             return 0;
         }
 
-        else if (strcmp(arguments[1], "routing") == 0 || strcmp(arguments[0], "sr") == 0)
+        else if ((flag == 2  && strcmp(arguments[1], "routing") == 0) || (flag == 1 && strcmp(arguments[0], "sr") == 0))
         {
+            print_routing(*table);
+            return 0;
         }
 
-        else if (strcmp(arguments[1], "cache") == 0 || strcmp(arguments[0], "sc") == 0)
+        else if ((flag == 2 && strcmp(arguments[1], "cache") == 0) || (flag == 1 && strcmp(arguments[0], "sc") == 0))
         {
+            print_cache(FEDEX);
+            return 0;
+        }
+        else if ((flag == 2 && strcmp(arguments[1], "objects") == 0) || (flag == 1 && strcmp(arguments[0], "so") == 0))
+        {
+            print_objects(FEDEX);
+            return 0;
         }
     }
     else if (strcmp(arguments[0], "leave") == 0 && flag == 1 && state != notreg)
     {
-        //de-register
-        if(leave_server(netID, sockfd, argv[1], argv[2]) == -1)
-        {
-            printf("Something went wrong. Please try again.\n");
+        if(leave_protocol(netID, sockfd, argv, n_neighbours, neighbours, table, FEDEX) == -1)
             return -1;
-        }
-
-        //fechar todos os fds e addrinfo
-        close_all_sockets(*n_neighbours, neighbours);
 
         //atualizar o estado
         *n_neighbours = 0;
@@ -197,17 +219,10 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
     }
     else if (strcmp(arguments[0], "exit") == 0 && flag == 1)
     {
-        if(state == reg || state == lonereg)
+        if (state == reg || state == lonereg)
         {
-            //de-register
-            if(leave_server(netID, sockfd, argv[1], argv[2]) == -1)
-            {
-                printf("Something went wrong. Please try again.\n");
+            if(leave_protocol(netID, sockfd, argv, n_neighbours, neighbours, table, FEDEX) == -1)
                 return -1;
-            }
-
-            //fechar todos os fds e addrinfo
-            close_all_sockets(*n_neighbours, neighbours);
         }
         //atualizar o estado
         *n_neighbours = 0;
@@ -216,21 +231,26 @@ int user_interface(int sockfd, char* argv[], neighbour* neighbours, int* n_neigh
     }
 
     //se não for encontrado qualquer comando da lista
-    printf("Invalid command\n");
+    printf("Invalid command. Check README for valid commands\n");
     return -1;
 }
 
-//Ordena um array para fazer uma lista de opções para conectar
-int* random_neighbour(int n_nodes, int* shuffle)
+/******************************************************************************
+* Sorts an array to make a list of options to connect to
+*
+* Returns: (int)
+*   shuffle if successfull
+******************************************************************************/
+int *random_neighbour(int n_nodes, int *shuffle)
 {
     int i, temp, randIndex;
 
-    for(i = 0; i < n_nodes; i++) 
+    for (i = 0; i < n_nodes; i++)
     {
         shuffle[i] = i;
     }
 
-    for(i = 0; i < n_nodes; i++) 
+    for (i = 0; i < n_nodes; i++)
     {
         temp = shuffle[i];
         randIndex = rand() % n_nodes;
@@ -242,16 +262,20 @@ int* random_neighbour(int n_nodes, int* shuffle)
     return shuffle;
 }
 
-/*
-Validar comando enviado por TCP
-Return: 
-    1 - NEW
-    2 - EXTERN
-    3 - ADVERTISE
-    4 - WITHDRAW
-    -1 - erro ou mensagem não existe no protocolo
-*/
-int validate_messages(char* mail)
+/******************************************************************************
+* Validate command sent by TCP protocol
+*
+* Returns: (int)
+*    1 - NEW
+*    2 - EXTERN
+*    3 - ADVERTISE
+*    4 - WITHDRAW
+*    5 - INTEREST
+*    6 - DATA
+*    7 - NODATA
+*   -1 - ERROR or message not part of protocol
+******************************************************************************/
+int validate_messages(char *mail)
 {
     int flag = 0;
     char buffer[BUF_SIZE];
@@ -259,43 +283,104 @@ int validate_messages(char* mail)
 
     sscanf(mail, "%s", buffer);
 
-    if(strcmp(buffer, "NEW") == 0)
+    if (strcmp(buffer, "NEW") == 0)
     {
         flag = sscanf(mail, "%s %s %s\n", arguments[0], arguments[1], arguments[2]);
-        if(flag != 3)
+        if (flag != 3)
         {
             return -1;
         }
-        if(validar_IPv4(arguments[1]) == -1 || validar_port(arguments[2]) == -1)
+        if (validar_IPv4(arguments[1]) == -1 || validar_port(arguments[2]) == -1)
         {
             return -1;
         }
         return 1;
     }
-    if(strcmp(buffer, "EXTERN") == 0)
+    else if (strcmp(buffer, "EXTERN") == 0)
     {
         flag = sscanf(mail, "%s %s %s\n", arguments[0], arguments[1], arguments[2]);
-        if(flag != 3)
+        if (flag != 3)
         {
             return -1;
         }
-        if(validar_IPv4(arguments[1]) == -1 || validar_port(arguments[2]) == -1)
+        if (validar_IPv4(arguments[1]) == -1 || validar_port(arguments[2]) == -1)
         {
             return -1;
         }
         //comando conhecido
         return 2;
     }
-    if(strcmp(buffer, "ADVERTISE") == 0)
+    else if (strcmp(buffer, "ADVERTISE") == 0)
     {
-        flag = sscanf(mail, "%s \n", arguments[0]);
+        flag = sscanf(mail, "%s %s\n", arguments[0], arguments[1]);
+        if (flag != 2)
+        {
+            return -1;
+        }
         return 3;
     }
-    if(strcmp(buffer, "WITHDRAW") == 0)
+    else if (strcmp(buffer, "WITHDRAW") == 0)
     {
-        //comando conhecido
+        flag = sscanf(mail, "%s %s\n", arguments[0], arguments[1]);
+        if (flag != 2)
+        {
+            return -1;
+        }
         return 4;
     }
+    else if (strcmp(buffer, "INTEREST") == 0)
+    {
+        flag = sscanf(mail, "%s %s\n", arguments[0], arguments[1]);
+        if (flag != 2)
+        {
+            return -1;
+        }
+        return 5;
+    }
+    else if (strcmp(buffer, "DATA") == 0)
+    {
+        flag = sscanf(mail, "%s %s\n", arguments[0], arguments[1]);
+        if (flag != 2)
+        {
+            return -1;
+        }
+        return 6;
+    }
+    else if (strcmp(buffer, "NODATA") == 0)
+    {
+        flag = sscanf(mail, "%s %s\n", arguments[0], arguments[1]);
+        if (flag != 2)
+        {
+            return -1;
+        }
+        return 7;
+    }
 
+    return -1;
+}
+
+/******************************************************************************
+* Separate ID from subname, comparing to ID in table struct
+* 
+*
+* Returns: (int)
+*   0 if successful
+*  -1 if failure
+******************************************************************************/
+int separate_ID_subname(char *ID_subname, char *ID, char *subname, expedition_table *table)
+{
+    char *ptr;
+
+    for (int i = 0; i < table->n_id; i++)
+    {
+        if (strncmp(table->id[i], ID_subname, strlen(table->id[i])) == 0)
+        {
+            strcpy(ID, table->id[i]);
+            ptr = ID_subname;
+            ptr += strlen(ID) + 1; //avançar ponteiro para o início do subname
+            strcpy(subname, ptr);
+            return 0;
+        }
+    }
     return -1;
 }
