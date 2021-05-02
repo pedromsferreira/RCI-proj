@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <errno.h>
+#include <time.h>
 #include "defines.h"
 #include "validation.h"
 #include "network.h"
@@ -27,6 +28,8 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
 
     struct sockaddr addr;
     socklen_t addrlen;
+
+    memset(confirm_message, '\0', BUF_SIZE);
 
     ask_list(netID, sock_server, nodeslist, &n_nodes);
 
@@ -143,6 +146,7 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
         return -1;
     }
 
+    addrlen=sizeof(addr);
     if (recvfrom(sock_server, confirm_message, sizeof(confirm_message) + 1, 0, &addr, &addrlen) == -1)
     {
         printf("Error: %s\n", strerror(errno));
@@ -151,6 +155,7 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
     }
     if (strcmp(confirm_message, "OKREG") != 0)
     {
+        printf("Unexpected answer from nodes server:\n");
         printf("%s\n", confirm_message);
         close_listen(neighbours, table, FEDEX);
         return -1;
@@ -181,6 +186,8 @@ int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock
 
     struct sockaddr addr;
     socklen_t addrlen;
+
+    memset(confirm_message, '\0', BUF_SIZE);
 
     //Criar fd exclusivo a listen
     neighbours[0].sockfd = TCP_server(nodeTCP, neighbours);
@@ -233,6 +240,7 @@ int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock
         return -1;
     }
 
+    addrlen=sizeof(addr);
     if (recvfrom(sock_server, confirm_message, sizeof(confirm_message) + 1, 0, &addr, &addrlen) == -1)
     {
         printf("Error: %s\n", strerror(errno));
@@ -358,6 +366,7 @@ void start_search_for_object(char *name, object_search *FEDEX, expedition_table 
     //atualizar em FEDEX que estamos neste momento à espera de um objeto
     strcpy(FEDEX->ID_return[FEDEX->n_return], table->id[0]);
     strcpy(FEDEX->object_return[FEDEX->n_return], name);
+    FEDEX->timer[FEDEX->n_return] = time(NULL);
     FEDEX->n_return++;
 
     return;
@@ -407,10 +416,12 @@ int leave_server(char *netID, int sock_server, char *nodeIP, char *nodeTCP)
     //variables
     int max_buffer = 6 + strlen(netID) + 1 + strlen(nodeIP) + 1 + 5 + 1;
     char bufferUNREG[max_buffer];
-    char confirm_message[8];
+    char confirm_message[BUF_SIZE];
 
     struct sockaddr addr;
     socklen_t addrlen;
+
+    memset(confirm_message, '\0', BUF_SIZE);
 
     //Mandar informação ao servidor a dizer que vai desligar (UNREG)
     sprintf(bufferUNREG, "UNREG %s %s %s", netID, nodeIP, nodeTCP);
@@ -423,6 +434,7 @@ int leave_server(char *netID, int sock_server, char *nodeIP, char *nodeTCP)
     if (wait_for_answer(sock_server, 2) == -1)
         return -1;
 
+    addrlen=sizeof(addr);
     if (recvfrom(sock_server, confirm_message, sizeof(confirm_message) + 1, 0, &addr, &addrlen) == -1)
     {
         printf("Error: %s\n", strerror(errno));
@@ -437,9 +449,30 @@ int leave_server(char *netID, int sock_server, char *nodeIP, char *nodeTCP)
     return 0;
 }
 
+int leave_protocol(char* netID, int sockfd, char **argv, int *n_neighbours, neighbour *neighbours, expedition_table *table, object_search *FEDEX)
+{
+    //de-register
+    if (leave_server(netID, sockfd, argv[1], argv[2]) == -1)
+    {
+        printf("Something went wrong. Please try again.\n");
+        return -1;
+    }
+
+    //fechar todos os fds e addrinfo
+    if (*n_neighbours == 0)
+    {
+        close_listen(neighbours, table, FEDEX);
+    }
+    else if (*n_neighbours > 0)
+    {
+        close_all_sockets(*n_neighbours, neighbours, table, FEDEX);
+    }
+    return 0;
+}
+
 void execute_NEW(neighbour *neighbours, char *mail_sent, int *n_neighbours, int ready_index, expedition_table *table)
 {
-    int i;
+    int i = 0;
     char arguments[3][BUF_SIZE];
 
     //ler IP e TCP do vizinho de recuperação
@@ -455,10 +488,7 @@ void execute_NEW(neighbour *neighbours, char *mail_sent, int *n_neighbours, int 
         for (i = 0; i < table->n_id; i++)
         {
             //Enviar mensagem de ADVERTISE de todas as entradas da tabela
-            if (write_to_someone(table->id[i], "0", neighbours, "ADVERTISE", ready_index, n_neighbours, table, NULL) == -1)
-            {
-                close_socket(n_neighbours, neighbours, ready_index, table);
-            }
+            write_to_someone(table->id[i], "0", neighbours, "ADVERTISE", ready_index, n_neighbours, table, NULL);
         }
         return;
     }
@@ -472,10 +502,7 @@ void execute_NEW(neighbour *neighbours, char *mail_sent, int *n_neighbours, int 
         for (i = 0; i < table->n_id; i++)
         {
             //Enviar mensagem de ADVERTISE de todas as entradas da tabela
-            if (write_to_someone(table->id[i], "0", neighbours, "ADVERTISE", ready_index, n_neighbours, table, NULL) == -1)
-            {
-                close_socket(n_neighbours, neighbours, ready_index, table);
-            }
+            write_to_someone(table->id[i], "0", neighbours, "ADVERTISE", ready_index, n_neighbours, table, NULL);
         }
         return;
     }
@@ -505,17 +532,16 @@ void execute_EXTERN(neighbour *neighbours, char *mail_sent, int ready_index)
 void execute_ADVERTISE(neighbour *neighbours, char *mail_sent, int ready_index, expedition_table *table, int *n_neighbours)
 {
     char arguments[2][BUF_SIZE];
-    int flag;
 
     //Ler ID
     sscanf(mail_sent, "%s %s\n", arguments[0], arguments[1]);
 
     //Guardar na tabela de expedição current socket e ID recebido
-    flag = insert_ID_in_table(table, neighbours[ready_index].sockfd, arguments[1]);
+    insert_ID_in_table(table, neighbours[ready_index].sockfd, arguments[1]);
 
     //Do not message neighbours if id already known
-    if (flag == -1)
-        return;
+    /*if (flag == -1)
+        return;*/
 
     if (*n_neighbours > 0)
     {
@@ -527,7 +553,6 @@ void execute_ADVERTISE(neighbour *neighbours, char *mail_sent, int ready_index, 
 
             if (write_to_someone(table->id[table->n_id - 1], "0", neighbours, "ADVERTISE", i, n_neighbours, table, NULL) == -1)
             {
-                close_socket(n_neighbours, neighbours, i, table);
                 i--;
             }
         }
@@ -563,7 +588,7 @@ void execute_WITHDRAW(neighbour *neighbours, char *mail_sent, int ready_index, e
 
     return;
 }
-//DAR MEMSET DE MERDASSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 void execute_INTEREST(neighbour *neighbours, char *mail_sent, int ready_index, expedition_table *table, int *n_neighbours, object_search *FEDEX)
 {
     char arguments[2][BUF_SIZE];
@@ -628,10 +653,9 @@ void execute_INTEREST(neighbour *neighbours, char *mail_sent, int ready_index, e
         }
     }
 
-    
     for (i = 0; i < table->n_id; i++)
     {
-        if(table->sockfd[i] == neighbours[ready_index].sockfd)
+        if (table->sockfd[i] == neighbours[ready_index].sockfd)
         {
             break;
         }
@@ -639,6 +663,7 @@ void execute_INTEREST(neighbour *neighbours, char *mail_sent, int ready_index, e
     //Guardar ID de retorno e objeto correspondente
     strcpy(FEDEX->ID_return[FEDEX->n_return], table->id[i]);
     strcpy(FEDEX->object_return[FEDEX->n_return], arguments[1]);
+    FEDEX->timer[FEDEX->n_return] = time(NULL);
     FEDEX->n_return++;
 
     return;
@@ -751,7 +776,7 @@ int close_all_sockets(int n_neighbours, neighbour *neighbours, expedition_table 
 {
     int i;
 
-    //Reset à tabela de expedição
+    //Reset à tabela de expedição e de objetos
     reset_table(table);
     reset_objects(FEDEX);
 
@@ -792,6 +817,7 @@ int close_socket(int *n_neighbours, neighbour *neighbours, int chosen_index, exp
                 {
                     if (write_to_someone(table->id[j], "0", neighbours, "WITHDRAW", i, n_neighbours, table, NULL) == -1)
                     {
+                        //em caso de desconexão
                         i--;
                         break;
                     }
@@ -811,13 +837,12 @@ int close_socket(int *n_neighbours, neighbour *neighbours, int chosen_index, exp
             printf("Error: %s\n", strerror(errno));
         }
     }
-    //acrescentar freeaddrinfo aqui????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 
     neighbours[chosen_index].sockfd = -1;
     //Se o nó retirado for um interno, move a tabela 1 fila para cima
     if (chosen_index > 2 && *n_neighbours > 2)
     {
-        for (i = 3; i < *n_neighbours + 2; i++)
+        for (i = chosen_index; i < *n_neighbours + 2; i++)
         {
             neighbours[i] = neighbours[i + 1];
         }
@@ -877,6 +902,8 @@ void reset_objects(object_search *FEDEX)
     }
     FEDEX->n_objects = 0;
     FEDEX->n_return = 0;
+    memset(FEDEX->cache_objects[0], '\0', BUF_SIZE);
+    memset(FEDEX->cache_objects[1], '\0', BUF_SIZE);
     return;
 }
 
@@ -896,7 +923,19 @@ void update_line_return_FEDEX(object_search *FEDEX, int index)
     return;
 }
 
-//Guardar na cache
+
+/**
+ * TentCounter()
+ *
+ * Arguments: fp - File pointer 
+ *            mapData - Struct with information about the map
+ * Returns: int - totalR if ok, -1 if error
+ * Side-Effects: Reads the number of tents per columns and per rows from the file and places them into the struct
+ *
+ * Description: Counts tents in int vectors and checks if the sum is right
+ *
+ */
+//Guardar na cache o nome inserido em ID_subname
 void store_in_cache(object_search *FEDEX, char *ID_subname)
 {
     int flag = 0, i;
@@ -920,4 +959,22 @@ void store_in_cache(object_search *FEDEX, char *ID_subname)
         strcpy(FEDEX->cache_objects[0], ID_subname);
     }
     return;
+}
+
+//Checks clock when called to see if a search for an object has expired
+int check_clock(object_search *FEDEX)
+{
+    int i;
+    time_t stoptime;
+
+    for (i = 0; i < FEDEX->n_return; i++)
+    {
+        stoptime = FEDEX->timer[i] - time(NULL);
+        if (stoptime > WAIT_TIME)
+        {
+            printf("\nObject %s seems to be stuck. Maybe try asking again?\n", FEDEX->object_return[i]);
+            update_line_return_FEDEX(FEDEX, i);
+        }
+    }
+    return 0;
 }

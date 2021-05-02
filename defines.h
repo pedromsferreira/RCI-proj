@@ -5,6 +5,8 @@
 #define MAX_NODES 512
 #define MAX_NEIGHBOURS 128
 #define MAX_OBJECTS 64
+#define WAIT_TIME 10
+#define MAX_WAIT 50000
 
 //Variáveis únicas
 typedef struct nodes{
@@ -31,16 +33,18 @@ typedef struct expedition_table{
 typedef struct object_search{
     char objects[MAX_OBJECTS][BUF_SIZE]; //Guardar objetos (nomes) no formato id.subname
     int n_objects; //Número de objetos
+
+
     char ID_return[MAX_OBJECTS][BUF_SIZE]; //ID para o qual se manda a mensagem de retorno
     char object_return[MAX_OBJECTS][BUF_SIZE]; //Objeto correspondente ao ID para retornar
     int n_return; //Número de objetos à espera de retorno
+    clock_t timer[MAX_OBJECTS];
 
     //Posições definidas:
     //  0 - posição mais recente
     //  1 - posição menos recente
     //  id.subnome
     char cache_objects[2][BUF_SIZE]; //Cache para guardar os últimos 2 objetos recebidos
-    clock_t timer[MAX_OBJECTS];
 }object_search;
 
 //Global variables

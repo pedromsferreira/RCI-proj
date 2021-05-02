@@ -103,6 +103,8 @@ void state_machine(int argc, char **argv)
         case leaving:
             FD_SET(0, &read_fd);
             maxfd = 0;
+            leave_protocol(netID,sock_server,argv,&n_neighbours,neighbours,&table,&FEDEX);
+            state = notreg;
             break;
         case exiting:
             break;
@@ -164,32 +166,44 @@ void state_machine(int argc, char **argv)
                     }
                 }
                 //se for o listen fd que deu trigger ao select
-                if (FD_ISSET(neighbours[0].sockfd, &read_fd))
+                else if (FD_ISSET(neighbours[0].sockfd, &read_fd))
                 {
                     FD_CLR(neighbours[0].sockfd, &read_fd);
 
                     //dar accept da conexão
                     n_neighbours++;
-                    neighbours[n_neighbours].sockfd = accept_connection(neighbours[0].sockfd, neighbours[0]);
-                    if (neighbours[n_neighbours].sockfd == -1)
+                    if(n_neighbours > 1)
+                    {
+                        neighbours[n_neighbours + 1].sockfd = accept_connection(neighbours[0].sockfd, neighbours[0]);
+                        flag = neighbours[n_neighbours + 1].sockfd;
+                    }
+                    else if(n_neighbours == 1)
+                    {
+                        neighbours[n_neighbours].sockfd = accept_connection(neighbours[0].sockfd, neighbours[0]);
+                        flag = neighbours[n_neighbours].sockfd;
+                    }
+                    
+                    if (flag == -1)
                     {
                         n_neighbours--;
                         continue;
                     }
                     printf("New node joining the network.\n");
                 }
-                //se for o vizinho externo que deu trigger ao select
-                if (FD_ISSET(neighbours[1].sockfd, &read_fd))
+                //se for uma ligação dos nós já registados
+                for (i = 1; i <= n_neighbours + 1; i++)
                 {
-                    FD_CLR(neighbours[1].sockfd, &read_fd);
-                    //ler buffer
-                    read_from_someone(neighbours, 1, &n_neighbours, &table, &FEDEX);
-                    //if everything OK -- state is now reg
-                    state = reg;
+                    if (FD_ISSET(neighbours[i].sockfd, &read_fd))
+                    {
+                        FD_CLR(neighbours[i].sockfd, &read_fd);
+                        read_from_someone(neighbours, i, &n_neighbours, &table, &FEDEX);
+                        //if everything OK -- state is now reg
+                        state = reg;
+                    }
                 }
                 break;
             case reg:
-                //if stdin (fd = 0) interrupted select
+                //se for o stdin que deu trigger ao select
                 if (FD_ISSET(0, &read_fd))
                 {
                     FD_CLR(0, &read_fd);
@@ -207,13 +221,23 @@ void state_machine(int argc, char **argv)
                     }
                 }
                 //se for o listen fd que deu trigger ao select
-                if (FD_ISSET(neighbours[0].sockfd, &read_fd))
+                else if (FD_ISSET(neighbours[0].sockfd, &read_fd))
                 {
                     FD_CLR(neighbours[0].sockfd, &read_fd);
                     //dar accept da conexão
                     n_neighbours++;
-                    neighbours[n_neighbours + 1].sockfd = accept_connection(neighbours[0].sockfd, neighbours[0]);
-                    if (neighbours[n_neighbours + 1].sockfd == -1)
+                    if(n_neighbours > 1)
+                    {
+                        neighbours[n_neighbours + 1].sockfd = accept_connection(neighbours[0].sockfd, neighbours[0]);
+                        flag = neighbours[n_neighbours + 1].sockfd;
+                    }
+                    else if(n_neighbours == 1)
+                    {
+                        neighbours[n_neighbours].sockfd = accept_connection(neighbours[0].sockfd, neighbours[0]);
+                        flag = neighbours[n_neighbours].sockfd;
+                    }
+                    
+                    if (flag == -1)
                     {
                         n_neighbours--;
                         continue;
@@ -229,6 +253,8 @@ void state_machine(int argc, char **argv)
                         read_from_someone(neighbours, i, &n_neighbours, &table, &FEDEX);
                     }
                 }
+                //verificar se algum objeto ainda está em trânsito
+                check_clock(&FEDEX);
                 break;
             case leaving:
                 //if stdin (fd = 0) interrupted select
@@ -288,7 +314,7 @@ Inserts specified id in table with respective fd
 Return:
     0 if didn't have information in table and filled it
     -1 if already in table
-WARNING: n_neighbours does not count with previous EXTERN
+
 */
 int insert_ID_in_table(expedition_table *table, int sockfd, char *ID)
 {

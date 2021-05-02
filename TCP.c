@@ -127,7 +127,7 @@ int write_to_someone(char *argument1, char *argument2, neighbour *neighbours, ch
 
     while (left > 0)
     {
-        flag = write(neighbours[destination].sockfd, ptr, left); 
+        flag = write(neighbours[destination].sockfd, ptr, left);
         //erro na escrita
         if (flag == -1)
         {
@@ -173,7 +173,7 @@ int TCP_command_hub(int flag, neighbour *neighbours, char *mail, int *n_neighbou
     case 5:
         execute_INTEREST(neighbours, mail, ready_index, table, n_neighbours, FEDEX);
         break;
-    
+
     case 6:
         execute_DATA(neighbours, mail, ready_index, table, n_neighbours, FEDEX);
         break;
@@ -182,8 +182,6 @@ int TCP_command_hub(int flag, neighbour *neighbours, char *mail, int *n_neighbou
         execute_NODATA(neighbours, mail, ready_index, table, n_neighbours, FEDEX);
         break;
     }
-
-    
 
     return 0;
 }
@@ -252,6 +250,7 @@ int accept_connection(int listenfd, neighbour neighbours)
 {
     int newfd;
 
+    neighbours.node_info->ai_addrlen = sizeof(neighbours.node_info->ai_addr);
     newfd = accept(listenfd, neighbours.node_info->ai_addr, &neighbours.node_info->ai_addrlen);
     if (newfd == -1)
     {
@@ -297,7 +296,7 @@ int promote_to_EXTERN(neighbour *neighbours, int *n_neighbours, expedition_table
             printf("Neighbour didn't respond, trying next one...\n");
         }
     }
-    printf("Nobody is home :( . Awaiting for new connections\n");
+    printf("\nNobody is home :( . Awaiting for new connections\n");
     return -1;
 }
 
@@ -321,7 +320,7 @@ int exchange_contacts(neighbour *neighbours, int sockfd, int *n_neighbours, int 
     }
 
     //Confirmar presença de um buffer para leitura
-    if (wait_for_answer(sockfd, 50) == -1)
+    if (wait_for_answer(sockfd, MAX_WAIT) == -1)
     {
         close_socket(n_neighbours, neighbours, index, table);
         return -1;
@@ -383,8 +382,6 @@ int backup_plan(int ready_index, int *n_neighbours, neighbour *placeholder, expe
 
         if (write_to_someone(placeholder[0].node.IP, placeholder[0].node.TCP, placeholder, "NEW", ready_index, n_neighbours, table, FEDEX) == -1)
         {
-            if (close_socket(n_neighbours, placeholder, 1, table) == -1)
-                return -1;
             if (promote_to_EXTERN(placeholder, n_neighbours, table, FEDEX) == -1)
             {
                 placeholder[1] = placeholder[0];
@@ -399,8 +396,6 @@ int backup_plan(int ready_index, int *n_neighbours, neighbour *placeholder, expe
             //Enviar mensagem de ADVERTISE de todas as entradas da tabela
             if (write_to_someone(table->id[i], "0", placeholder, "ADVERTISE", 1, n_neighbours, table, FEDEX) == -1)
             {
-                if (close_socket(n_neighbours, placeholder, 1, table) == -1)
-                    return -1;
                 if (promote_to_EXTERN(placeholder, n_neighbours, table, FEDEX) == -1)
                 {
                     placeholder[1] = placeholder[0];
@@ -412,10 +407,8 @@ int backup_plan(int ready_index, int *n_neighbours, neighbour *placeholder, expe
         }
 
         //Confirmar presença de um buffer para leitura
-        if (wait_for_answer(placeholder[1].sockfd, 500) == -1)
+        if (wait_for_answer(placeholder[1].sockfd, MAX_WAIT) == -1)
         {
-            if (close_socket(n_neighbours, placeholder, 1, table) == -1)
-                return -1;
             if (promote_to_EXTERN(placeholder, n_neighbours, table, FEDEX) == -1)
             {
                 placeholder[1] = placeholder[0];
@@ -427,8 +420,6 @@ int backup_plan(int ready_index, int *n_neighbours, neighbour *placeholder, expe
 
         if (read_from_someone(placeholder, 1, n_neighbours, table, FEDEX) == -1)
         {
-            if (close_socket(n_neighbours, placeholder, 1, table) == -1)
-                return -1;
             if (promote_to_EXTERN(placeholder, n_neighbours, table, FEDEX) == -1)
             {
                 placeholder[1] = placeholder[0];
@@ -437,6 +428,8 @@ int backup_plan(int ready_index, int *n_neighbours, neighbour *placeholder, expe
             }
             return 0;
         }
+        //atualizar estado
+        state = reg;
         //se recuperação for promovido a externo, informar vizinhos internos
         inform_internal_newEXTERN(n_neighbours, placeholder, table, FEDEX);
     }
@@ -453,6 +446,7 @@ int backup_plan(int ready_index, int *n_neighbours, neighbour *placeholder, expe
     //se o vizinho de recuperação é o prório e não tem vizinhos internos
     else if (ready_index == 1 && *n_neighbours == 0 && ((strcmp(placeholder[2].node.IP, placeholder[0].node.IP) == 0) && (strcmp(placeholder[2].node.TCP, placeholder[0].node.TCP) == 0)))
     {
+        //solução: esperar por resposta
         placeholder[1] = placeholder[0];
         state = lonereg;
     }
@@ -464,26 +458,27 @@ void inform_internal_newEXTERN(int *n_neighbours, neighbour *neighbours, expedit
     int i;
 
     //se tiveres vizinhos internos
-    if (*n_neighbours > 1)
+    if (*n_neighbours > 0)
     {
         //atualizar vizinhos internos com EXTERN
-        for (i = 3; i < *n_neighbours + 2; i++)
+        for (i = 1; i < *n_neighbours + 2; i++)
         {
+            if(i == 2)
+                continue;
+
             if (write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", i, n_neighbours, table, FEDEX) == -1)
             {
-                close_socket(n_neighbours, neighbours, i, table);
                 i--;
                 continue;
             }
         }
     }
     //se o teu vizinho interno for promovido a externo, mandar também mensagem
+    /*
     if ((strcmp(neighbours[2].node.IP, neighbours[0].node.IP) == 0) && (strcmp(neighbours[2].node.TCP, neighbours[0].node.TCP) == 0))
     {
-        if (write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", 1, n_neighbours, table, FEDEX) == -1)
-        {
-            close_socket(n_neighbours, neighbours, 1, table);
-        }
+        write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", 1, n_neighbours, table, FEDEX);
     }
+    */
     return;
 }

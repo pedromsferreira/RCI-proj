@@ -160,7 +160,7 @@ int user_interface(int sockfd, char *argv[], neighbour *neighbours, int *n_neigh
     }
     else if (strcmp(arguments[0], "clear") == 0 && flag == 2 && state != notreg)
     {
-        if(strcmp(arguments[1], "all") == 0)
+        if (strcmp(arguments[1], "all") == 0)
         {
             //Função
             clean_objects(table->id[0], arguments[1], FEDEX, 0);
@@ -169,7 +169,6 @@ int user_interface(int sockfd, char *argv[], neighbour *neighbours, int *n_neigh
         //Função
         clean_objects(table->id[0], arguments[1], FEDEX, 1);
         return 0;
-        
     }
     else if (strcmp(arguments[0], "get") == 0 && flag == 2 && state != notreg)
     {
@@ -204,22 +203,8 @@ int user_interface(int sockfd, char *argv[], neighbour *neighbours, int *n_neigh
     }
     else if (strcmp(arguments[0], "leave") == 0 && flag == 1 && state != notreg)
     {
-        //de-register
-        if (leave_server(netID, sockfd, argv[1], argv[2]) == -1)
-        {
-            printf("Something went wrong. Please try again.\n");
+        if(leave_protocol(netID, sockfd, argv, n_neighbours, neighbours, table, FEDEX) == -1)
             return -1;
-        }
-
-        //fechar todos os fds e addrinfo
-        if(*n_neighbours == 0)
-        {
-            close_listen(neighbours, table, FEDEX);
-        }
-        else if(*n_neighbours > 0)
-        {
-            close_all_sockets(*n_neighbours, neighbours, table, FEDEX);
-        }
 
         //atualizar o estado
         *n_neighbours = 0;
@@ -231,15 +216,8 @@ int user_interface(int sockfd, char *argv[], neighbour *neighbours, int *n_neigh
     {
         if (state == reg || state == lonereg)
         {
-            //de-register
-            if (leave_server(netID, sockfd, argv[1], argv[2]) == -1)
-            {
-                printf("Something went wrong. Please try again.\n");
+            if(leave_protocol(netID, sockfd, argv, n_neighbours, neighbours, table, FEDEX) == -1)
                 return -1;
-            }
-
-            //fechar todos os fds e addrinfo
-            close_all_sockets(*n_neighbours, neighbours, table, FEDEX);
         }
         //atualizar o estado
         *n_neighbours = 0;

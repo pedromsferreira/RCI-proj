@@ -11,6 +11,7 @@ void print_routing(expedition_table table);
 void print_cache(object_search* FEDEX);
 void print_objects(object_search *FEDEX);
 int leave_server(char *netID, int sock_server, char *nodeIP, char *nodeTCP);
+int leave_protocol(char* netID, int sockfd, char **argv, int *n_neighbours, neighbour *neighbours, expedition_table *table, object_search *FEDEX);
 void execute_NEW(neighbour *neighbours, char *mail_sent, int *n_neighbours, int ready_index, expedition_table* table);
 void execute_EXTERN(neighbour *neighbours, char *mail_sent, int ready_index);
 void execute_ADVERTISE(neighbour *neighbours, char *mail_sent, int ready_index, expedition_table* table, int* n_neighbours);
@@ -25,6 +26,7 @@ void reset_table(expedition_table* table);
 void reset_objects(object_search *FEDEX);
 void update_line_return_FEDEX(object_search *FEDEX, int index);
 void store_in_cache(object_search* FEDEX, char* ID_subname);
+int check_clock(object_search* FEDEX);
 
 #endif
     
