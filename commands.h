@@ -21,12 +21,12 @@ void execute_DATA(neighbour *neighbours, char *mail_sent, int ready_index, exped
 void execute_NODATA(neighbour *neighbours, char *mail_sent, int ready_index, expedition_table *table, int *n_neighbours, object_search *FEDEX);
 int close_all_sockets(int n_neighbours, neighbour *neighbours, expedition_table *table, object_search* FEDEX);
 int close_socket(int *n_neighbours, neighbour *neighbours, int chosen_index, expedition_table* table);
-int close_listen(neighbour *neighbours, expedition_table *table, object_search* FEDEX);
+void close_listen(neighbour *neighbours, expedition_table *table, object_search* FEDEX);
 void reset_table(expedition_table* table);
 void reset_objects(object_search *FEDEX);
 void update_line_return_FEDEX(object_search *FEDEX, int index);
 void store_in_cache(object_search* FEDEX, char* ID_subname);
-int check_clock(object_search* FEDEX);
+void check_clock(object_search* FEDEX);
 
 #endif
     

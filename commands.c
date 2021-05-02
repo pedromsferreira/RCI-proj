@@ -15,6 +15,22 @@
 #include "TCP.h"
 #include "UDP.h"
 
+/******************************************************************************
+* Joins nodes server without having a specified node to connect
+*
+* Arguments:
+*   netID - network name
+*   nodeID - node identification in the network
+*   sock_server - fd corresponding to UDP connection with server
+*   nodeIP - node's IP
+*   nodeTCP - node's port number
+*   n_neighbours - number of your neighbours (should be 0)
+*   
+*
+* Returns: (int)
+*   0 if successfull
+*  -1 if something went wrong
+******************************************************************************/
 int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, char *nodeTCP, neighbour *neighbours, int *n_neighbours, expedition_table *table, object_search *FEDEX)
 {
     //variables
@@ -46,7 +62,7 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
     //Caso 1: Lista Vazia --> começar listen e entrar só no server
     if (n_nodes == 0)
     {
-        printf("Looks like there's nobody registered. Joining alone...\n");
+        printf("\nLooks like there's nobody registered. Joining alone...\n");
     }
 
     //Caso 2: Lista com só um nó
@@ -61,7 +77,6 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
             return -1;
         }
         current = 0;
-        printf("Connection established to someone! Waiting for information...\n");
 
         //info que falta guardar
         neighbours[1].sockfd = node_externo;
@@ -128,7 +143,6 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
         strcpy(neighbours[1].node.IP, nodeslist[current].IP);
         strcpy(neighbours[1].node.TCP, nodeslist[current].TCP);
 
-        printf("Information received! Registering in the nodes server...\n");
     }
 
     //Mandar informação ao servidor a dizer que ligou (REG)
@@ -177,6 +191,24 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
     return 0;
 }
 
+/******************************************************************************
+* Joins nodes server with a specified node to connect
+*
+* Arguments:
+*   netID - network name
+*   nodeID - this node identification in the network
+*   sock_server - fd corresponding to UDP connection with server
+*   bootIP - target node's IP
+*   bootTCP - target port number
+*   nodeIP - this node's IP
+*   nodeTCP - this node's port number
+*   n_neighbours - number of your neighbours (should be 0)
+*   
+*
+* Returns: (int)
+*   0 if successfull
+*  -1 if something went wrong
+******************************************************************************/
 int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock_server, char *nodeIP, char *nodeTCP, neighbour *neighbours, int *n_neighbours, expedition_table *table, object_search *FEDEX)
 {
     int max_buffer = 4 + strlen(netID) + 1 + strlen(nodeIP) + 1 + 5 + 1;
@@ -208,8 +240,6 @@ int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock
         return -1;
     }
 
-    printf("Connection established to someone! Waiting for information...\n");
-
     //info que falta guardar
     neighbours[1].sockfd = node_externo;
     *n_neighbours += 1;
@@ -225,7 +255,6 @@ int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock
     //Dar update ao externo do nó na topologia
     strcpy(neighbours[1].node.IP, bootIP);
     strcpy(neighbours[1].node.TCP, bootTCP);
-    printf("Information received! Registering in the nodes server...\n");
 
     //Envio da mensagem de REG
     sprintf(bufferREG, "REG %s %s %s", netID, nodeIP, nodeTCP);
@@ -248,6 +277,7 @@ int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock
     }
     if (strcmp(confirm_message, "OKREG") != 0)
     {
+        printf("Unexpected answer from nodes server:\n");
         printf("%s\n", confirm_message);
         return -1;
     }
@@ -260,6 +290,17 @@ int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock
     return 0;
 }
 
+/******************************************************************************
+* Creates an object and stores it in the internal memory (see struct object_search's
+* declaration for reference)
+*
+* Arguments:
+*   ID - this node's ID
+*   subname - user specified name for object
+*
+* Returns: (void)
+*
+******************************************************************************/
 void create_subname(char *ID, char *subname, object_search *FEDEX)
 {
     char buffer[BUF_SIZE];
@@ -294,11 +335,21 @@ void create_subname(char *ID, char *subname, object_search *FEDEX)
     }
     return;
 }
-/*
-//Option value
-    0 - clear all
-    1 - clear only subname
-*/
+
+
+/******************************************************************************
+* Clean objects stored in internal memory depending on option
+*
+* Arguments:
+*   ID - this node's ID
+*   subname - user specified name for object
+*   option:
+*       0 - clear all
+*       1 - clear only subname
+*
+* Returns: (void)
+*
+******************************************************************************/
 void clean_objects(char *ID, char *subname, object_search *FEDEX, int option)
 {
     char buffer[BUF_SIZE];
@@ -332,6 +383,16 @@ void clean_objects(char *ID, char *subname, object_search *FEDEX, int option)
     return;
 }
 
+/******************************************************************************
+* Sends an INTEREST message to a node in same direction of target object requested
+*
+* Arguments:
+*   name - target object
+*   n_neighbours - number of known neighbours
+*
+* Returns: (void)
+*
+******************************************************************************/
 void start_search_for_object(char *name, object_search *FEDEX, expedition_table *table, neighbour *neighbours, int *n_neighbours)
 {
     char ID[BUF_SIZE], subname[BUF_SIZE];
@@ -372,6 +433,11 @@ void start_search_for_object(char *name, object_search *FEDEX, expedition_table 
     return;
 }
 
+/******************************************************************************
+* Shows in console current external and recovery neighbour
+*
+* Returns: (void)
+******************************************************************************/
 void print_topology(neighbour *neighbours)
 {
     printf("Extern ( ͡° ͜ʖ ͡°) :\n IP --> %s\n TCP --> %s\n", neighbours[1].node.IP, neighbours[1].node.TCP);
@@ -379,21 +445,31 @@ void print_topology(neighbour *neighbours)
     return;
 }
 
+/******************************************************************************
+* Shows in console every entry in expedition table
+*
+* Returns: (void)
+******************************************************************************/
 void print_routing(expedition_table table)
 {
     for (int i = 0; i < table.n_id; i++)
     {
         if (i == 0)
         {
-            printf("( ͡° ͜ʖ ͡°) : ID --> %s // socket --> -\n", table.id[i]);
+            printf("( ͡° ͜ʖ ͡°) : ID --> %s // fd --> -\n", table.id[i]);
             continue;
         }
 
-        printf("( ͡° ͜ʖ ͡°) : ID --> %s // socket --> %d\n", table.id[i], table.sockfd[i]);
+        printf("( ͡° ͜ʖ ͡°) : ID --> %s // fd --> %d\n", table.id[i], table.sockfd[i]);
     }
     return;
 }
 
+/******************************************************************************
+* Shows in console every entry in cache
+*
+* Returns: (void)
+******************************************************************************/
 void print_cache(object_search *FEDEX)
 {
     printf("\n( ͡° ͜ʖ ͡°) : Linha 1 --> %s\n", FEDEX->cache_objects[0]);
@@ -401,6 +477,11 @@ void print_cache(object_search *FEDEX)
     return;
 }
 
+/******************************************************************************
+* Shows in console every entry in internal memory
+*
+* Returns: (void)
+******************************************************************************/
 void print_objects(object_search *FEDEX)
 {
     for (int i = 0; i < FEDEX->n_objects; i++)
@@ -411,6 +492,21 @@ void print_objects(object_search *FEDEX)
     return;
 }
 
+/******************************************************************************
+* Leaves nodes server (unregisters this node from current network)
+*
+* Arguments:
+*   netID - network name
+*   sock_server - fd corresponding to UDP connection with server
+*   nodeIP - node's IP
+*   nodeTCP - node's port number
+*   
+*
+* Returns: (int)
+*   0 - looks good
+*  -1 - something wrong  
+*
+******************************************************************************/
 int leave_server(char *netID, int sock_server, char *nodeIP, char *nodeTCP)
 {
     //variables
@@ -423,7 +519,7 @@ int leave_server(char *netID, int sock_server, char *nodeIP, char *nodeTCP)
 
     memset(confirm_message, '\0', BUF_SIZE);
 
-    //Mandar informação ao servidor a dizer que vai desligar (UNREG)
+    //Mandar informação ao servidor a dizer que vai dar leave da rede (UNREG)
     sprintf(bufferUNREG, "UNREG %s %s %s", netID, nodeIP, nodeTCP);
     if (sendto(sock_server, bufferUNREG, strlen(bufferUNREG) + 1, 0, server_info->ai_addr, server_info->ai_addrlen) == -1)
     {
@@ -442,14 +538,31 @@ int leave_server(char *netID, int sock_server, char *nodeIP, char *nodeTCP)
     }
     if (strcmp(confirm_message, "OKUNREG") != 0)
     {
-        printf("No confirmation received from server. Returning...\n");
+        printf("Unexpected answer from nodes server:\n");
+        printf("%s\n", confirm_message);
         return -1;
     }
     printf("Left with success!\n");
     return 0;
 }
 
-int leave_protocol(char* netID, int sockfd, char **argv, int *n_neighbours, neighbour *neighbours, expedition_table *table, object_search *FEDEX)
+/******************************************************************************
+*   Protocol for leaving a network
+*   Starts by leaving the nodes server, then proceeds to wipe all memory stored
+*
+* Arguments:
+*   netID - network name
+*   sock_server - fd corresponding to UDP connection with server
+*   nodeIP - node's IP
+*   nodeTCP - node's port number
+*   
+*
+* Returns: (int)
+*   0 - looks good
+*  -1 - something wrong  
+*
+******************************************************************************/
+int leave_protocol(char *netID, int sockfd, char **argv, int *n_neighbours, neighbour *neighbours, expedition_table *table, object_search *FEDEX)
 {
     //de-register
     if (leave_server(netID, sockfd, argv[1], argv[2]) == -1)
@@ -470,6 +583,12 @@ int leave_protocol(char* netID, int sockfd, char **argv, int *n_neighbours, neig
     return 0;
 }
 
+/******************************************************************************
+* Runs when node receives command "NEW"
+* Checks number of neighbours
+*   - if it was alone or was sent by external node, store info and send "EXTERN" and "ADVERTISE" of his own network
+*   - if it was internal that sent message, store info and send "EXTERN" and "ADVERTISE" of his own network
+******************************************************************************/
 void execute_NEW(neighbour *neighbours, char *mail_sent, int *n_neighbours, int ready_index, expedition_table *table)
 {
     int i = 0;
@@ -509,6 +628,10 @@ void execute_NEW(neighbour *neighbours, char *mail_sent, int *n_neighbours, int 
     return;
 }
 
+/******************************************************************************
+* Runs when node receives command "EXTERN"
+* Updates recovery neighbour
+******************************************************************************/
 void execute_EXTERN(neighbour *neighbours, char *mail_sent, int ready_index)
 {
     char arguments[3][BUF_SIZE];
@@ -523,7 +646,7 @@ void execute_EXTERN(neighbour *neighbours, char *mail_sent, int ready_index)
     sscanf(mail_sent, "%s %s %s\n", arguments[0], arguments[1], arguments[2]);
 
     //for debugging only
-    printf("\nRECOVERY updated to %s\n", arguments[2]);
+    //printf("\nRECOVERY updated to %s\n", arguments[2]);
 
     //guardar info do vizinho de recuperação
     strcpy(neighbours[2].node.IP, arguments[1]);
@@ -532,6 +655,11 @@ void execute_EXTERN(neighbour *neighbours, char *mail_sent, int ready_index)
     return;
 }
 
+/******************************************************************************
+* Runs when node receives command "ADVERTISE"
+* Inserts ID in table
+* Sends "ADVERTISE ID" message to all nodes he's connected, except the node who sent the message
+******************************************************************************/
 void execute_ADVERTISE(neighbour *neighbours, char *mail_sent, int ready_index, expedition_table *table, int *n_neighbours)
 {
     char arguments[2][BUF_SIZE];
@@ -563,6 +691,11 @@ void execute_ADVERTISE(neighbour *neighbours, char *mail_sent, int ready_index, 
     return;
 }
 
+/******************************************************************************
+* Runs when node receives command "WITHDRAW"
+* Removes ID from table
+* Sends "WITHDRAW ID" message to all nodes he's connected, except the node who sent the message
+******************************************************************************/
 void execute_WITHDRAW(neighbour *neighbours, char *mail_sent, int ready_index, expedition_table *table, int *n_neighbours)
 {
     char arguments[2][BUF_SIZE];
@@ -592,6 +725,14 @@ void execute_WITHDRAW(neighbour *neighbours, char *mail_sent, int ready_index, e
     return;
 }
 
+/******************************************************************************
+* Runs when node receives command "INTEREST"
+* Checks cache to see if file is there, if is, send "DATA" towards source node
+* If not destination node, sends message towards destination node
+* If destination node, checks if exists in node "internal memory"
+*   - if exists, sends "DATA" towards source node
+*   - if doesn't exists, sends "NODATA" towards source node
+******************************************************************************/
 void execute_INTEREST(neighbour *neighbours, char *mail_sent, int ready_index, expedition_table *table, int *n_neighbours, object_search *FEDEX)
 {
     char arguments[2][BUF_SIZE];
@@ -672,6 +813,12 @@ void execute_INTEREST(neighbour *neighbours, char *mail_sent, int ready_index, e
     return;
 }
 
+/******************************************************************************
+* Runs when node receives command "DATA"
+* Stores in cache the file
+* If not source node, sends message towards source node
+* If source node, prints file to user
+******************************************************************************/
 void execute_DATA(neighbour *neighbours, char *mail_sent, int ready_index, expedition_table *table, int *n_neighbours, object_search *FEDEX)
 {
     char arguments[2][BUF_SIZE];
@@ -694,7 +841,7 @@ void execute_DATA(neighbour *neighbours, char *mail_sent, int ready_index, exped
         //Se corresponder ao nó de origem
         if (strcmp(table->id[0], FEDEX->ID_return[i]) == 0 && strcmp(arguments[1], FEDEX->object_return[i]) == 0)
         {
-            printf("Tem aqui a sua entrega de dildos, %s", subname);
+            printf("\nObject found, here is your file :) --> %s\n", subname);
             update_line_return_FEDEX(FEDEX, i);
 
             return;
@@ -726,6 +873,11 @@ void execute_DATA(neighbour *neighbours, char *mail_sent, int ready_index, exped
     }
 }
 
+/******************************************************************************
+* Runs when node receives command "NODATA"
+* If not source node, sends message towards source node
+* If source node, prints "Couldn't fetch file" to user
+******************************************************************************/
 void execute_NODATA(neighbour *neighbours, char *mail_sent, int ready_index, expedition_table *table, int *n_neighbours, object_search *FEDEX)
 {
     char arguments[2][BUF_SIZE];
@@ -745,7 +897,7 @@ void execute_NODATA(neighbour *neighbours, char *mail_sent, int ready_index, exp
         //Se corresponder ao nó de origem
         if (strcmp(table->id[0], FEDEX->ID_return[i]) == 0 && strcmp(arguments[1], FEDEX->object_return[i]) == 0)
         {
-            printf("Não tem aqui a sua entrega de dildos, perderam-se no caminho");
+            printf("\nObject not found, might have been lost due to bad shipping companies :(\n");
             update_line_return_FEDEX(FEDEX, i);
 
             return;
@@ -775,6 +927,14 @@ void execute_NODATA(neighbour *neighbours, char *mail_sent, int ready_index, exp
     }
 }
 
+/******************************************************************************
+* Closes all listen and connection sockets
+* Resets structs and frees addrinfo
+*
+* Returns: (int)
+*   0 if successful
+*   -1 if ERROR
+******************************************************************************/
 int close_all_sockets(int n_neighbours, neighbour *neighbours, expedition_table *table, object_search *FEDEX)
 {
     int i;
@@ -801,6 +961,14 @@ int close_all_sockets(int n_neighbours, neighbour *neighbours, expedition_table 
     return 0;
 }
 
+/******************************************************************************
+* Closes specified connection socket stored in neighbours struct
+* Updates structs and topology accordingly
+*
+* Returns: (int)
+*   0 if successful
+*   -1 if ERROR
+******************************************************************************/
 int close_socket(int *n_neighbours, neighbour *neighbours, int chosen_index, expedition_table *table)
 {
     int i;
@@ -862,7 +1030,11 @@ int close_socket(int *n_neighbours, neighbour *neighbours, int chosen_index, exp
     return 0;
 }
 
-int close_listen(neighbour *neighbours, expedition_table *table, object_search *FEDEX)
+/******************************************************************************
+* Closes socket dedicated to listen
+* Resets structs and frees addrinfo
+******************************************************************************/
+void close_listen(neighbour *neighbours, expedition_table *table, object_search *FEDEX)
 {
 
     if (neighbours[0].sockfd != -1 && neighbours[0].sockfd != 0)
@@ -880,9 +1052,12 @@ int close_listen(neighbour *neighbours, expedition_table *table, object_search *
     neighbours[0].sockfd = -1;
 
     freeaddrinfo(neighbours[0].node_info);
-    return 0;
+    return;
 }
 
+/******************************************************************************
+* Sets table struct to NULL pointer in strings and -1 in ints (sockets)
+******************************************************************************/
 void reset_table(expedition_table *table)
 {
     //Tabela de ids
@@ -895,6 +1070,9 @@ void reset_table(expedition_table *table)
     return;
 }
 
+/******************************************************************************
+* Sets object_search struct to NULL pointer in strings
+******************************************************************************/
 void reset_objects(object_search *FEDEX)
 {
     for (int i = 0; i < MAX_OBJECTS; i++)
@@ -910,8 +1088,10 @@ void reset_objects(object_search *FEDEX)
     return;
 }
 
-//Limpar a linha que tinha guardado o objeto e o ID de retorno
-//Puxar a tabela uma linha para cima
+/******************************************************************************
+* Erases line of return ID and object
+* Concatenates table
+******************************************************************************/
 void update_line_return_FEDEX(object_search *FEDEX, int index)
 {
     memset(FEDEX->ID_return[index], '\0', BUF_SIZE);
@@ -926,15 +1106,11 @@ void update_line_return_FEDEX(object_search *FEDEX, int index)
     return;
 }
 
-
 /******************************************************************************
-* Store in cache
-*
-* Returns: (int)
-*   fd if successfull
-*   -1 if something went wrong
+* Store in cache ID_subname using LRU (Least Recently Used) policy
+* First line is always most recent
+* Last line always least recent
 ******************************************************************************/
-//Guardar na cache o nome inserido em ID_subname
 void store_in_cache(object_search *FEDEX, char *ID_subname)
 {
     int flag = 0, i;
@@ -959,9 +1135,10 @@ void store_in_cache(object_search *FEDEX, char *ID_subname)
     }
     return;
 }
-
-//Checks clock when called to see if a search for an object has expired
-int check_clock(object_search *FEDEX)
+/******************************************************************************
+* Checks clock when called to see if a search for an object has expired
+******************************************************************************/
+void check_clock(object_search *FEDEX)
 {
     int i;
     time_t stoptime;
@@ -975,5 +1152,5 @@ int check_clock(object_search *FEDEX)
             update_line_return_FEDEX(FEDEX, i);
         }
     }
-    return 0;
+    return;
 }

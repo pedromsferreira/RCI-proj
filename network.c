@@ -15,7 +15,21 @@
 #include "UDP.h"
 #include "TCP.h"
 
-//Gestão dos estados do programa
+/******************************************************************************
+*   Manages program when in following states (variable state in defines.h):
+*       notreg - Not registered in nodes server
+*       lonereg - Registered in nodes server but this node is the only one
+*       reg - Registered with friends
+*       leaving - intermediate state, only called when something bad happens
+*       exiting - instructs program to close
+*
+* Arguments:
+*   argc - number of arguments from program start
+*   argv - arguments from program start
+*
+* Returns: (void)
+*
+******************************************************************************/
 void state_machine(int argc, char **argv)
 {
 
@@ -115,8 +129,9 @@ void state_machine(int argc, char **argv)
 
         //await for fds ready to be read
         fd_ready = select(maxfd + 1, &read_fd, (fd_set *)NULL, (fd_set *)NULL, (struct timeval *)NULL);
+
         //in case return value is wrong
-        if (fd_ready <= 0)
+        if (fd_ready < 0)
         {
             printf("Error during select: %s\n", strerror(errno));
             //exit strat goes here
@@ -188,7 +203,7 @@ void state_machine(int argc, char **argv)
                         n_neighbours--;
                         continue;
                     }
-                    printf("New node joining the network.\n");
+                    printf("\nNew node joining as your neighbour.\n");
                 }
                 //se for uma ligação dos nós já registados
                 for (i = 1; i <= n_neighbours + 1; i++)
@@ -242,7 +257,7 @@ void state_machine(int argc, char **argv)
                         n_neighbours--;
                         continue;
                     }
-                    printf("New node joining the network.\n");
+                    printf("\nNew node joining as your neighbour.\n");
                 }
                 //se for uma ligação dos nós já registados
                 for (i = 1; i <= n_neighbours + 1; i++)
@@ -257,24 +272,6 @@ void state_machine(int argc, char **argv)
                 check_clock(&FEDEX);
                 break;
             case leaving:
-                //if stdin (fd = 0) interrupted select
-                if (FD_ISSET(0, &read_fd))
-                {
-                    FD_CLR(0, &read_fd);
-
-                    //tratar do comando introduzido na consola
-                    flag = user_interface(sock_server, argv, neighbours, &n_neighbours, netID, &table, &FEDEX);
-                    if (flag == 1)
-                    {
-                        printf("Closing program...\n");
-                        continue;
-                    }
-
-                    if (flag == -1)
-                    {
-                        continue;
-                    }
-                }
                 break;
             case exiting:
                 break;
@@ -290,7 +287,7 @@ void state_machine(int argc, char **argv)
 /******************************************************************************
 * Puts a timer in the connection estabilished (fd) for a certain amount of seconds
 * Also leaves select open for other communications
-
+*
 * Returns: (int)
 *   0 if timer hasn't been reached
 *   -1 if timer is reached, making a timeout happen
@@ -378,7 +375,8 @@ void remove_ID_from_table(expedition_table *table, char *ID)
     return;
 }
 /******************************************************************************
-* Removes socket from various indexes of table struct, pushing table 1 line upwards every time a socket and ID are removed
+* Removes socket from various indexes of table struct, pushing table 1 line 
+* upwards every time a socket and ID are removed
 ******************************************************************************/
 void remove_socket_from_table(expedition_table *table, int sockfd)
 {

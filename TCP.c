@@ -239,7 +239,7 @@ int read_from_someone(neighbour *placeholder, int ready_index, int *n_neighbours
     }
 
     //for debugging only
-    printf("\nMessage received:\n%s",placeholder[ready_index].mail_sent);
+    //printf("\nMessage received:\n%s",placeholder[ready_index].mail_sent);
 
     //Encontrar "\n" na mensagem
     if (received > 0)

@@ -14,7 +14,7 @@ typedef struct nodes{
     char TCP[6];
 }nodes;
 
-//Estrutura de dados utilizada na topologia e em geral
+//Estrutura de dados utilizada na topologia
 typedef struct neighbour{
     nodes node;
     int sockfd; 

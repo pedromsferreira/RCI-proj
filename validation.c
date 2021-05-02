@@ -169,11 +169,9 @@ int user_interface(int sockfd, char *argv[], neighbour *neighbours, int *n_neigh
     {
         if (strcmp(arguments[1], "all") == 0)
         {
-            //Função
             clean_objects(table->id[0], arguments[1], FEDEX, 0);
             return 0;
         }
-        //Função
         clean_objects(table->id[0], arguments[1], FEDEX, 1);
         return 0;
     }
@@ -233,9 +231,10 @@ int user_interface(int sockfd, char *argv[], neighbour *neighbours, int *n_neigh
     }
 
     //se não for encontrado qualquer comando da lista
-    printf("Invalid command\n");
+    printf("Invalid command. Check README for valid commands\n");
     return -1;
 }
+
 /******************************************************************************
 * Sorts an array to make a list of options to connect to
 *
@@ -267,7 +266,7 @@ int *random_neighbour(int n_nodes, int *shuffle)
 * Validate command sent by TCP protocol
 *
 * Returns: (int)
-*   1 - NEW
+*    1 - NEW
 *    2 - EXTERN
 *    3 - ADVERTISE
 *    4 - WITHDRAW
@@ -360,17 +359,13 @@ int validate_messages(char *mail)
     return -1;
 }
 
-//Separar ID do subnome
-//Retorna 0 caso encontre ID correspondente na tabela
-//Retorna -1 caso não encontre nada
-
 /******************************************************************************
 * Separate ID from subname, comparing to ID in table struct
 * 
 *
 * Returns: (int)
 *   0 if successful
-*   -1 if failure
+*  -1 if failure
 ******************************************************************************/
 int separate_ID_subname(char *ID_subname, char *ID, char *subname, expedition_table *table)
 {
