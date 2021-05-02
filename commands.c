@@ -871,6 +871,7 @@ void execute_DATA(neighbour *neighbours, char *mail_sent, int ready_index, exped
             }
         }
     }
+    return;
 }
 
 /******************************************************************************
@@ -925,6 +926,7 @@ void execute_NODATA(neighbour *neighbours, char *mail_sent, int ready_index, exp
             }
         }
     }
+    return;
 }
 
 /******************************************************************************
@@ -1080,6 +1082,8 @@ void reset_objects(object_search *FEDEX)
         memset(FEDEX->objects[i], '\0', BUF_SIZE);
         memset(FEDEX->ID_return[i], '\0', BUF_SIZE);
         memset(FEDEX->object_return[i], '\0', BUF_SIZE);
+        FEDEX->timer[i] = 0;
+        
     }
     FEDEX->n_objects = 0;
     FEDEX->n_return = 0;
@@ -1096,11 +1100,13 @@ void update_line_return_FEDEX(object_search *FEDEX, int index)
 {
     memset(FEDEX->ID_return[index], '\0', BUF_SIZE);
     memset(FEDEX->object_return[index], '\0', BUF_SIZE);
+    FEDEX->timer[index] = 0;
 
     for (int i = index; i < FEDEX->n_return - 1; i++)
     {
         strcpy(FEDEX->ID_return[i], FEDEX->ID_return[i + 1]);
         strcpy(FEDEX->object_return[i], FEDEX->object_return[i + 1]);
+        FEDEX->timer[i] = FEDEX->timer[i + 1];
     }
     FEDEX->n_return--;
     return;
@@ -1145,12 +1151,17 @@ void check_clock(object_search *FEDEX)
 
     for (i = 0; i < FEDEX->n_return; i++)
     {
-        stoptime = FEDEX->timer[i] - time(NULL);
+        stoptime = time(NULL) - FEDEX->timer[i];
         if (stoptime > WAIT_TIME)
         {
             printf("\nObject %s seems to be stuck. Maybe try asking again?\n", FEDEX->object_return[i]);
             update_line_return_FEDEX(FEDEX, i);
+            printf("\nndn> ");
+            fflush(stdout);
         }
+        //for debugging only
+        //printf("\nTimer check: %ld\n", stoptime);
     }
+    
     return;
 }

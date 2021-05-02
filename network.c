@@ -34,9 +34,11 @@ void state_machine(int argc, char **argv)
 {
 
     //Variables
-    int fd_ready, maxfd, sock_server, flag = 0, i;
+    int fd_ready, maxfd, sock_server, flag = 0, print_check = 1, i;
     int n_neighbours = 0; //número de vizinhos
     char netID[BUF_SIZE];
+    struct timeval tv;
+    
     fd_set read_fd;
 
     //Tabela de nós
@@ -59,6 +61,9 @@ void state_machine(int argc, char **argv)
     //  1 - posição menos recente
 
     object_search FEDEX;
+
+    tv.tv_sec = 3;
+    tv.tv_usec = 0;
 
     //inicializar variáveis
     //Tabela de nós
@@ -89,6 +94,9 @@ void state_machine(int argc, char **argv)
     {
         //limpar a estrutura
         FD_ZERO(&read_fd);
+        tv.tv_sec = 3;
+        tv.tv_usec = 0;
+
         //initialize states
         switch (state)
         {
@@ -124,17 +132,32 @@ void state_machine(int argc, char **argv)
             break;
         }
 
-        printf("\nndn> ");
-        fflush(stdout);
+        if(print_check == 1)
+        {
+            printf("\nndn> ");
+            fflush(stdout);
+            print_check = 0;
+        }
 
         //await for fds ready to be read
-        fd_ready = select(maxfd + 1, &read_fd, (fd_set *)NULL, (fd_set *)NULL, (struct timeval *)NULL);
+        fd_ready = select(maxfd + 1, &read_fd, (fd_set *)NULL, (fd_set *)NULL, &tv);
 
         //in case return value is wrong
         if (fd_ready < 0)
         {
             printf("Error during select: %s\n", strerror(errno));
-            //exit strat goes here
+            exit(1);
+        }
+
+        //verificar se algum objeto ainda está em trânsito
+        if (fd_ready == 0)
+        {
+            check_clock(&FEDEX);
+        }
+
+        if (fd_ready > 0)
+        {
+            print_check = 1;
         }
 
         for (; fd_ready; fd_ready -= 1)
@@ -268,8 +291,6 @@ void state_machine(int argc, char **argv)
                         read_from_someone(neighbours, i, &n_neighbours, &table, &FEDEX);
                     }
                 }
-                //verificar se algum objeto ainda está em trânsito
-                check_clock(&FEDEX);
                 break;
             case leaving:
                 break;

@@ -5,8 +5,8 @@
 #define MAX_NODES 512
 #define MAX_NEIGHBOURS 128
 #define MAX_OBJECTS 64
-#define WAIT_TIME 10
-#define MAX_WAIT 50000
+#define WAIT_TIME 5
+#define MAX_WAIT 500
 
 //Variáveis únicas
 typedef struct nodes{
