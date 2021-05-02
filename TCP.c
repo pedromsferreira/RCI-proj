@@ -13,12 +13,13 @@
 #include "network.h"
 #include "TCP.h"
 
-/*
-Initialize socket for TCP connection with client
-Return:
-    fd if successfull
-    -1 if something went wrong
-*/
+/******************************************************************************
+* Initialize socket for TCP connection with client
+*
+* Returns: (int)
+*   fd if successfull
+*   -1 if something went wrong
+******************************************************************************/
 int TCP_client(char *IP, char *TCP, struct addrinfo *node_info)
 {
 
@@ -54,9 +55,17 @@ int TCP_client(char *IP, char *TCP, struct addrinfo *node_info)
     }
 
     node_info = res;
+    freeaddrinfo(res);
     return sockfd;
 }
 
+/******************************************************************************
+* Initialize socket for listening other clients
+*
+* Returns: (int)
+*   fd if successfull
+*   -1 if something went wrong
+******************************************************************************/
 int TCP_server(char *TCP, neighbour *neighbours)
 {
     int sockfd, flag /*, option = 1*/;
@@ -99,20 +108,23 @@ int TCP_server(char *TCP, neighbour *neighbours)
     return sockfd;
 }
 
-/*
-Send a message through TCP
-
-Arguments:
-    argument1, argument2 - use both for topology, insert "0" in argument2 for routing and search for object
-
-Return:
-    0 if successfull
-    -1 if something went wrong
-*/
+/******************************************************************************
+* Send a message through TCP
+*
+* Arguments:
+*   argument1, argument2 - use both for topology, insert "0" in argument2 for 
+*   routing and search for object
+*
+* Returns: (int)
+*    0 if successfull
+*   -1 if something went wrong
+******************************************************************************/
 int write_to_someone(char *argument1, char *argument2, neighbour *neighbours, char *command, int destination, int *n_neighbours, expedition_table *table, object_search *FEDEX)
 {
     int left = 0, flag = 0;
     char *ptr, buffer[BUF_SIZE];
+
+    memset(buffer, '\0', BUF_SIZE);
 
     //Comando de protocolo de topologia
     if (strcmp(argument2, "0") != 0)
@@ -142,15 +154,19 @@ int write_to_someone(char *argument1, char *argument2, neighbour *neighbours, ch
     return 0;
 }
 
-/*
-Re-route message to function for execution
-flag:
-    1 - NEW
-    2 - EXTERN
-    3 - ADVERTISE
-    4 - WITHDRAW
-*/
-int TCP_command_hub(int flag, neighbour *neighbours, char *mail, int *n_neighbours, int ready_index, expedition_table *table, object_search *FEDEX)
+/******************************************************************************
+* Re-route message to execute related protocol
+*
+*   known flags:
+*       1 - NEW
+*       2 - EXTERN
+*       3 - ADVERTISE
+*       4 - WITHDRAW 
+*       5 - INTEREST
+*       6 - DATA
+*       7 - NODATA
+******************************************************************************/
+void TCP_command_hub(int flag, neighbour *neighbours, char *mail, int *n_neighbours, int ready_index, expedition_table *table, object_search *FEDEX)
 {
     switch (flag)
     {
@@ -183,19 +199,23 @@ int TCP_command_hub(int flag, neighbour *neighbours, char *mail, int *n_neighbou
         break;
     }
 
-    return 0;
+    return;
 }
 
-/*
-Read a message through TCP
-Return:
-    0 if normal procedure
-    -1 if something went wrong
-*/
+/******************************************************************************
+* Read a message through TCP
+*
+* Returns: (int)
+*   0 if normal procedure
+*   -1 if something went wrong
+******************************************************************************/
 int read_from_someone(neighbour *placeholder, int ready_index, int *n_neighbours, expedition_table *table, object_search *FEDEX)
 {
     int received = 0, flag = 0;
     char *ptr, *ptr2;
+    char buffer[BUF_SIZE*4];
+
+    //memset(buffer, '\0', BUF_SIZE * 4);
 
     //Pointer no início da string
     ptr = placeholder[ready_index].mail_sent;
@@ -214,9 +234,12 @@ int read_from_someone(neighbour *placeholder, int ready_index, int *n_neighbours
     //buffer overflow
     if (strlen(placeholder[ready_index].mail_sent) >= BUF_SIZE * 4 - 1 && strstr(placeholder[ready_index].mail_sent, "\n") == NULL)
     {
-        placeholder[ready_index].mail_sent[0] = '\0';
+        memset(placeholder[ready_index].mail_sent, '\0', BUF_SIZE * 4);
         return 0;
     }
+
+    //for debugging only
+    printf("\nMessage received:\n%s",placeholder[ready_index].mail_sent);
 
     //Encontrar "\n" na mensagem
     if (received > 0)
@@ -238,7 +261,8 @@ int read_from_someone(neighbour *placeholder, int ready_index, int *n_neighbours
 
             //Atualiza a string para estar à frente do "\n"
             ptr2 += 1;
-            strcpy(placeholder[ready_index].mail_sent, ptr2);
+            strcpy(buffer, ptr2);
+            strcpy(placeholder[ready_index].mail_sent, buffer);
         }
     }
 
@@ -246,6 +270,14 @@ int read_from_someone(neighbour *placeholder, int ready_index, int *n_neighbours
     return -1;
 }
 
+
+/******************************************************************************
+* Accept a connection from client through TCP
+*
+* Returns: (int)
+*   fd if normal procedure
+*   -1 if connection is missing
+******************************************************************************/
 int accept_connection(int listenfd, neighbour neighbours)
 {
     int newfd;
@@ -256,19 +288,18 @@ int accept_connection(int listenfd, neighbour neighbours)
     {
         return -1;
     }
-    printf("\nO gigante está entrando\n");
-    printf("\nO gigante já entrou\n");
 
     return newfd;
 }
 
-/*
-Promotes internal neighbour to EXTERN
-Return:
-    0 if someone is promoted
-    -1 if there's no neighbours able to promote
-WARNING: n_neighbours does not count with previous EXTERN
-*/
+/******************************************************************************
+* Promotes internal neighbour to EXTERN
+*
+*   Returns: (int)
+*   0 if someone is promoted
+*   -1 if there's no neighbours able to be promoted
+*   WARNING: n_neighbours does not count with previous external neighbour
+******************************************************************************/
 int promote_to_EXTERN(neighbour *neighbours, int *n_neighbours, expedition_table *table, object_search *FEDEX)
 {
     int i;
@@ -300,6 +331,22 @@ int promote_to_EXTERN(neighbour *neighbours, int *n_neighbours, expedition_table
     return -1;
 }
 
+
+/******************************************************************************
+* 
+*   Establishes a relation between this program and the person it's contacting.
+*   Protocol goes like so:
+*       -Send NEW and ADVERTISE protocols
+*       -Wait for an answer
+*           -If there's no answer in the designated wait time, connection fails
+*           -If answer is received, function continues
+*       -Read message received from contact and execute received protocols
+*
+*   Returns: (int)
+*   0 if contacts were exchanged
+*  -1 if process went abnormal
+* 
+******************************************************************************/
 int exchange_contacts(neighbour *neighbours, int sockfd, int *n_neighbours, int index, expedition_table *table, object_search *FEDEX)
 {
     int i;
@@ -334,22 +381,25 @@ int exchange_contacts(neighbour *neighbours, int sockfd, int *n_neighbours, int 
     return 0;
 }
 
-int update_RECOVERY(int *n_neighbours, neighbour *neighbours, expedition_table *table, object_search *FEDEX)
-{
-    int i;
-
-    for (i = 3; i < *n_neighbours + 3; i++)
-    {
-        //Enviar mensagem de EXTERN
-        if (write_to_someone(neighbours[1].node.IP, neighbours[1].node.TCP, neighbours, "EXTERN", i, n_neighbours, table, FEDEX) == -1)
-        {
-            close_socket(n_neighbours, neighbours, i, table);
-            i--;
-        }
-    }
-    return 0;
-}
-
+/*****************************************************************************
+* 
+*   In case someone drops connection with program.
+*   Protocol goes like so:
+*       -Close related socket
+*       -Identify if in one of the following situations:
+*           1 - Lost external neighbour and has a backup
+*           2 - Lost external neighbour but backup is itself
+*           3 - Same as 2 but has no neighbours
+*       -Execute designated backup plan:
+*           1 - Contact backup and hope he's alive, else leave network
+*           2 - Promote internal neighbour to extern
+*           3 - Just wait for new connections
+*
+*   Returns: (int)
+*   0 if plan was successful
+*  -1 if plan didn't went that smoothly
+* 
+******************************************************************************/
 int backup_plan(int ready_index, int *n_neighbours, neighbour *placeholder, expedition_table *table, object_search *FEDEX)
 {
     int fd_check, i;
@@ -370,13 +420,10 @@ int backup_plan(int ready_index, int *n_neighbours, neighbour *placeholder, expe
         //vizinho de recuperação is AWOL
         if (fd_check == -1)
         {
-            //NOT FINISHEDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
-            //Era suposto dar disconnect aqui mas idk how u do that
             *n_neighbours -= 1;
             //atualizar para o estado leaving
             state = leaving;
             printf("\nYou have been disconnected due to abscence of contacts. Please try rejoining the network\n");
-            //write(0, "leave", strlen("leave"));
             return 0;
         }
 
@@ -453,14 +500,22 @@ int backup_plan(int ready_index, int *n_neighbours, neighbour *placeholder, expe
     return 0;
 }
 
+/*****************************************************************************
+* 
+*   Just informs every neighbour of your shiny new extern neighbour. 
+*   Good for you!
+*
+*   Returns: (void)
+*
+******************************************************************************/
 void inform_internal_newEXTERN(int *n_neighbours, neighbour *neighbours, expedition_table *table, object_search *FEDEX)
 {
     int i;
 
-    //se tiveres vizinhos internos
+    //se tiveres vizinhos
     if (*n_neighbours > 0)
     {
-        //atualizar vizinhos internos com EXTERN
+        //atualizar vizinhos com EXTERN
         for (i = 1; i < *n_neighbours + 2; i++)
         {
             if(i == 2)

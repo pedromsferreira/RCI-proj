@@ -59,8 +59,8 @@ int ask_list(char *netID, int sockfd, nodes* nodeslist, int* n_nodes)
     char list[65536];
     char *token;
 
-    struct sockaddr addr;
-    socklen_t addrlen;
+    /*struct sockaddr addr;
+    socklen_t addrlen;*/
 
     strcat(buffer, netID); //buffer = NODES NETID
 
@@ -73,7 +73,8 @@ int ask_list(char *netID, int sockfd, nodes* nodeslist, int* n_nodes)
     if(wait_for_answer(sockfd, 2) == -1)
         return -1;
 
-    if (recvfrom(sockfd, list, sizeof(list) + 1, 0, &addr, &addrlen) == -1)
+    //addrlen = sizeof(addr);
+    if (recvfrom(sockfd, list, sizeof(list) + 1, 0, NULL, NULL) == -1)
     {
         printf("Error: %s\n", strerror(errno));
         return -1;

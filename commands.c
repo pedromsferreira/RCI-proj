@@ -26,8 +26,8 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
     char confirm_message[BUF_SIZE];
     nodes nodeslist[MAX_NODES];
 
-    struct sockaddr addr;
-    socklen_t addrlen;
+    /*struct sockaddr addr;
+    socklen_t addrlen;*/
 
     memset(confirm_message, '\0', BUF_SIZE);
 
@@ -146,8 +146,8 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
         return -1;
     }
 
-    addrlen=sizeof(addr);
-    if (recvfrom(sock_server, confirm_message, sizeof(confirm_message) + 1, 0, &addr, &addrlen) == -1)
+    //addrlen=sizeof(addr);
+    if (recvfrom(sock_server, confirm_message, sizeof(confirm_message) + 1, 0, NULL, NULL) == -1)
     {
         printf("Error: %s\n", strerror(errno));
         close_listen(neighbours, table, FEDEX);
@@ -184,8 +184,8 @@ int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock
     char bufferREG[max_buffer];
     char confirm_message[BUF_SIZE];
 
-    struct sockaddr addr;
-    socklen_t addrlen;
+    //struct sockaddr addr;
+    //socklen_t addrlen;
 
     memset(confirm_message, '\0', BUF_SIZE);
 
@@ -240,8 +240,8 @@ int join_simple(char *netID, char *nodeID, char *bootIP, char *bootTCP, int sock
         return -1;
     }
 
-    addrlen=sizeof(addr);
-    if (recvfrom(sock_server, confirm_message, sizeof(confirm_message) + 1, 0, &addr, &addrlen) == -1)
+    //addrlen=sizeof(addr);
+    if (recvfrom(sock_server, confirm_message, sizeof(confirm_message) + 1, 0, NULL, NULL) == -1)
     {
         printf("Error: %s\n", strerror(errno));
         return -1;
@@ -418,8 +418,8 @@ int leave_server(char *netID, int sock_server, char *nodeIP, char *nodeTCP)
     char bufferUNREG[max_buffer];
     char confirm_message[BUF_SIZE];
 
-    struct sockaddr addr;
-    socklen_t addrlen;
+    /*struct sockaddr addr;
+    socklen_t addrlen;*/
 
     memset(confirm_message, '\0', BUF_SIZE);
 
@@ -434,8 +434,8 @@ int leave_server(char *netID, int sock_server, char *nodeIP, char *nodeTCP)
     if (wait_for_answer(sock_server, 2) == -1)
         return -1;
 
-    addrlen=sizeof(addr);
-    if (recvfrom(sock_server, confirm_message, sizeof(confirm_message) + 1, 0, &addr, &addrlen) == -1)
+    //addrlen=sizeof(addr);
+    if (recvfrom(sock_server, confirm_message, sizeof(confirm_message) + 1, 0, NULL, NULL) == -1)
     {
         printf("Error: %s\n", strerror(errno));
         return -1;
@@ -521,6 +521,9 @@ void execute_EXTERN(neighbour *neighbours, char *mail_sent, int ready_index)
 
     //ler IP e TCP do vizinho de recuperação
     sscanf(mail_sent, "%s %s %s\n", arguments[0], arguments[1], arguments[2]);
+
+    //for debugging only
+    printf("\nRECOVERY updated to %s\n", arguments[2]);
 
     //guardar info do vizinho de recuperação
     strcpy(neighbours[2].node.IP, arguments[1]);
@@ -924,17 +927,13 @@ void update_line_return_FEDEX(object_search *FEDEX, int index)
 }
 
 
-/**
- * TentCounter()
- *
- * Arguments: fp - File pointer 
- *            mapData - Struct with information about the map
- * Returns: int - totalR if ok, -1 if error
- * Side-Effects: Reads the number of tents per columns and per rows from the file and places them into the struct
- *
- * Description: Counts tents in int vectors and checks if the sum is right
- *
- */
+/******************************************************************************
+* Store in cache
+*
+* Returns: (int)
+*   fd if successfull
+*   -1 if something went wrong
+******************************************************************************/
 //Guardar na cache o nome inserido em ID_subname
 void store_in_cache(object_search *FEDEX, char *ID_subname)
 {

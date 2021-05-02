@@ -9,6 +9,12 @@
 #include <errno.h>
 #include "defines.h"
 
+/******************************************************************************
+* Returns number of the biggest fd
+*
+* Returns: (int)
+*   maxfd if normal procedure
+******************************************************************************/
 int max(neighbour *fd_list, int n)
 {
     int i, maxfd = 0;
@@ -24,6 +30,13 @@ int max(neighbour *fd_list, int n)
     return maxfd;
 }
 
+/******************************************************************************
+* Accept a connection from client through TCP
+*
+* Returns: (int)
+*   fd if normal procedure
+*   -1 if connection is missing
+******************************************************************************/
 int find_ID_index_in_struct_neighbours(neighbour *neighbours, expedition_table *table, int *n_neighbours, int ready_index)
 {
     int j;
@@ -46,6 +59,13 @@ int find_ID_index_in_struct_neighbours(neighbour *neighbours, expedition_table *
     return -1;
 }
 
+/******************************************************************************
+* Accept a connection from client through TCP
+*
+* Returns: (int)
+*   fd if normal procedure
+*   -1 if connection is missing
+******************************************************************************/
 int find_ID_index_in_expedition_table(char* ID, expedition_table* table)
 {
     int i;

@@ -287,6 +287,14 @@ void state_machine(int argc, char **argv)
     return;
 }
 
+/******************************************************************************
+* Puts a timer in the connection estabilished (fd) for a certain amount of seconds
+* Also leaves select open for other communications
+
+* Returns: (int)
+*   0 if timer hasn't been reached
+*   -1 if timer is reached, making a timeout happen
+******************************************************************************/
 //Espera por resposta do fd por segundos determinados
 int wait_for_answer(int sockfd, int seconds)
 {
@@ -309,13 +317,14 @@ int wait_for_answer(int sockfd, int seconds)
     return 0;
 }
 
-/*
-Inserts specified id in table with respective fd
-Return:
-    0 if didn't have information in table and filled it
-    -1 if already in table
 
-*/
+/******************************************************************************
+* Inserts ID and socket in an available slot of the table struct
+*
+* Returns: (int)
+*   0 if successfully put ID in table
+*   -1 if ID is already in table
+******************************************************************************/
 int insert_ID_in_table(expedition_table *table, int sockfd, char *ID)
 {
 
@@ -327,6 +336,9 @@ int insert_ID_in_table(expedition_table *table, int sockfd, char *ID)
             return -1;
         }
     }
+
+    
+
     //Copiar valores passados na função para a tabela
     strcpy(table->id[table->n_id], ID);
     table->sockfd[table->n_id] = sockfd;
@@ -336,7 +348,9 @@ int insert_ID_in_table(expedition_table *table, int sockfd, char *ID)
 
     return 0;
 }
-
+/******************************************************************************
+* Removes ID from various indexes of table struct, pushing table 1 line upwards every time a socket and ID are removed
+******************************************************************************/
 void remove_ID_from_table(expedition_table *table, char *ID)
 {
     //Retirar valores passados na função da tabela
@@ -355,13 +369,17 @@ void remove_ID_from_table(expedition_table *table, char *ID)
                 strcpy(table->id[j - 1], table->id[j]);
                 table->sockfd[j - 1] = table->sockfd[j];
             }
+            memset(table->id[table->n_id], '\0', BUF_SIZE);
+            table->sockfd[table->n_id] = -1;
             //Decrementar número de nós na rede
             table->n_id--;
         }
     }
     return;
 }
-
+/******************************************************************************
+* Removes socket from various indexes of table struct, pushing table 1 line upwards every time a socket and ID are removed
+******************************************************************************/
 void remove_socket_from_table(expedition_table *table, int sockfd)
 {
     //Retirar valores passados na função da tabela
@@ -380,6 +398,8 @@ void remove_socket_from_table(expedition_table *table, int sockfd)
                 strcpy(table->id[j - 1], table->id[j]);
                 table->sockfd[j - 1] = table->sockfd[j];
             }
+            memset(table->id[table->n_id], '\0', BUF_SIZE);
+            table->sockfd[table->n_id] = -1;
             //Decrementar número de nós na rede
             table->n_id--;
             i--;

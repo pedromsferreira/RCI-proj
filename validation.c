@@ -12,7 +12,9 @@
 #include "commands.h"
 #include "validation.h"
 
-//Instruções para dar input corretamente após erro no terminal
+/******************************************************************************
+* Instructions for the user
+******************************************************************************/
 void instructions()
 {
     printf("To start this program, your command must be formatted like this:\n\n");
@@ -20,12 +22,13 @@ void instructions()
     return;
 }
 
-/*
-Validar IPv4 introduzido
-Return:
-    0 quando o IP for válido
-    -1 quando o contrário
-*/
+/******************************************************************************
+* Validate IPv4 introduced
+*
+* Returns: (int)
+*    0 - when IP is valid
+*    -1 - when IP is invalid
+******************************************************************************/
 int validar_IPv4(char *IPv4)
 {
     int flag = 0;
@@ -43,12 +46,13 @@ int validar_IPv4(char *IPv4)
     return 0;
 }
 
-/*
-Validar port number introduzido
-Return:
-    0 quando o port number for válido
-    -1 quando o contrário
-*/
+/******************************************************************************
+* Validate inserted port number
+*
+* Returns: (int)
+*    0 - if port number is valid
+*    1 - if port number is invalid
+******************************************************************************/
 int validar_port(char *port)
 {
     int port_number = atoi(port);
@@ -61,7 +65,9 @@ int validar_port(char *port)
     return 0;
 }
 
-//Validação do comando que inicia o programa
+/******************************************************************************
+* Validate command that starts program
+******************************************************************************/
 void validate_start(int argc, char *argv[])
 {
     int flag = 0;
@@ -96,13 +102,14 @@ void validate_start(int argc, char *argv[])
     return;
 }
 
-/*
-Validar comando inserido durante a sessão no stdin
-Return:
-    1 quando o programa for encerrar
-    0 quando o comando for conhecido e bem executado
-    -1 quando o contrário
-*/
+/******************************************************************************
+* Validate command written in stdin during program
+*
+* Returns: (int)
+*    1 - Program closing
+*    0 - Command known e well executed
+*    -1 - ERROR
+******************************************************************************/
 int user_interface(int sockfd, char *argv[], neighbour *neighbours, int *n_neighbours, char *netID, expedition_table *table, object_search *FEDEX)
 {
     char arguments[5][BUF_SIZE];
@@ -178,24 +185,24 @@ int user_interface(int sockfd, char *argv[], neighbour *neighbours, int *n_neigh
     else if (((strcmp(arguments[0], "show") == 0 && flag == 2) || (((strcmp(arguments[0], "st") == 0 || strcmp(arguments[0], "sr") == 0 || strcmp(arguments[0], "sc") == 0 || strcmp(arguments[0], "so") == 0) && flag == 1))) && state != notreg)
     {
 
-        if (strcmp(arguments[1], "topology") == 0 || strcmp(arguments[0], "st") == 0)
+        if ((flag == 2  && strcmp(arguments[1], "topology") == 0 ) || (flag == 1 && strcmp(arguments[0], "st") == 0))
         {
             print_topology(neighbours);
             return 0;
         }
 
-        else if (strcmp(arguments[1], "routing") == 0 || strcmp(arguments[0], "sr") == 0)
+        else if ((flag == 2  && strcmp(arguments[1], "routing") == 0) || (flag == 1 && strcmp(arguments[0], "sr") == 0))
         {
             print_routing(*table);
             return 0;
         }
 
-        else if (strcmp(arguments[1], "cache") == 0 || strcmp(arguments[0], "sc") == 0)
+        else if ((flag == 2 && strcmp(arguments[1], "cache") == 0) || (flag == 1 && strcmp(arguments[0], "sc") == 0))
         {
             print_cache(FEDEX);
             return 0;
         }
-        else if (strcmp(arguments[1], "objects") == 0 || strcmp(arguments[0], "so") == 0)
+        else if ((flag == 2 && strcmp(arguments[1], "objects") == 0) || (flag == 1 && strcmp(arguments[0], "so") == 0))
         {
             print_objects(FEDEX);
             return 0;
@@ -229,8 +236,12 @@ int user_interface(int sockfd, char *argv[], neighbour *neighbours, int *n_neigh
     printf("Invalid command\n");
     return -1;
 }
-
-//Ordena um array para fazer uma lista de opções para conectar
+/******************************************************************************
+* Sorts an array to make a list of options to connect to
+*
+* Returns: (int)
+*   shuffle if successfull
+******************************************************************************/
 int *random_neighbour(int n_nodes, int *shuffle)
 {
     int i, temp, randIndex;
@@ -252,15 +263,19 @@ int *random_neighbour(int n_nodes, int *shuffle)
     return shuffle;
 }
 
-/*
-Validar comando enviado por TCP
-Return: 
-    1 - NEW
-    2 - EXTERN
-    3 - ADVERTISE
-    4 - WITHDRAW
-    -1 - erro ou mensagem não existe no protocolo
-*/
+/******************************************************************************
+* Validate command sent by TCP protocol
+*
+* Returns: (int)
+*   1 - NEW
+*    2 - EXTERN
+*    3 - ADVERTISE
+*    4 - WITHDRAW
+*    5 - INTEREST
+*    6 - DATA
+*    7 - NODATA
+*   -1 - ERROR or message not part of protocol
+******************************************************************************/
 int validate_messages(char *mail)
 {
     int flag = 0;
@@ -348,6 +363,15 @@ int validate_messages(char *mail)
 //Separar ID do subnome
 //Retorna 0 caso encontre ID correspondente na tabela
 //Retorna -1 caso não encontre nada
+
+/******************************************************************************
+* Separate ID from subname, comparing to ID in table struct
+* 
+*
+* Returns: (int)
+*   0 if successful
+*   -1 if failure
+******************************************************************************/
 int separate_ID_subname(char *ID_subname, char *ID, char *subname, expedition_table *table)
 {
     char *ptr;
