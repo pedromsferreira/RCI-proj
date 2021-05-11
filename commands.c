@@ -95,6 +95,13 @@ int join_complicated(char *netID, char *nodeID, int sock_server, char *nodeIP, c
     if (n_nodes > 1)
     {
         shuffle = (int *)malloc(n_nodes * sizeof(int));
+        //No caso de malloc inválido
+        if(shuffle == NULL)
+        {
+            //fechar listenfd
+            close_listen(neighbours, table, FEDEX);
+            return -1;
+        }
 
         //Escolher nó a que se liga
         shuffle = random_neighbour(n_nodes, shuffle);

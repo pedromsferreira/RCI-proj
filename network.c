@@ -106,12 +106,12 @@ void state_machine(int argc, char **argv)
             break;
         case lonereg:
             FD_SET(0, &read_fd);
-            for (i = 0; i <= n_neighbours; i++)
+            for (i = 0; i <= n_neighbours + 1; i++)
             {
                 if (neighbours[i].sockfd != -1)
                     FD_SET(neighbours[i].sockfd, &read_fd);
             }
-            maxfd = max(neighbours, n_neighbours);
+            maxfd = max(neighbours, n_neighbours + 1);
             break;
         case reg:
             FD_SET(0, &read_fd);
