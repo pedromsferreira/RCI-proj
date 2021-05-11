@@ -247,9 +247,9 @@ int read_from_someone(neighbour *placeholder, int ready_index, int *n_neighbours
         while (1) //Enquanto houver "\n", estará sempre à procura de mais comandos
         {
             ptr2 = strstr(placeholder[ready_index].mail_sent, "\n");
+            //mensagem incompleta
             if (ptr2 == NULL)
             {
-                memset(placeholder[ready_index].mail_sent, '\0', BUF_SIZE * 4);
                 return 0;
             }
 
@@ -262,6 +262,7 @@ int read_from_someone(neighbour *placeholder, int ready_index, int *n_neighbours
             //Atualiza a string para estar à frente do "\n"
             ptr2 += 1;
             strcpy(buffer, ptr2);
+            //memset(placeholder[ready_index].mail_sent, '\0', BUF_SIZE * 4); //clean buffer for copy
             strcpy(placeholder[ready_index].mail_sent, buffer);
         }
     }
@@ -407,6 +408,10 @@ int backup_plan(int ready_index, int *n_neighbours, neighbour *placeholder, expe
     if (close_socket(n_neighbours, placeholder, ready_index, table) == -1)
     {
         return -1;
+    }
+    if(state == notreg)
+    {
+        return 0;
     }
     //promover vizinho de recuperação a externo se recuperação for diferente dele próprio
     if (ready_index == 1 && *n_neighbours >= 0 && ((strcmp(placeholder[2].node.IP, placeholder[0].node.IP) != 0) || (strcmp(placeholder[2].node.TCP, placeholder[0].node.TCP) != 0)))
